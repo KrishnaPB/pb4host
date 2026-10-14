@@ -41,3 +41,20 @@ table.evidence td { word-break: break-word; max-width: 28rem; }
 .attribution { color: var(--pico-muted-color); }
 .login-card { max-width: 26rem; margin: 3rem auto; }
 footer { text-align: center; color: var(--pico-muted-color); }
+
+/* Phase 2 */
+.public-form { max-width: 48rem; }
+.public-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.public-form .consent { font-size: 0.9rem; }
+.public-form .verified { background: var(--pico-mark-background-color, #fff3c4); padding: .5rem .75rem; border-radius: .25rem; }
+.ok { color: #2a7d2e; font-weight: 600; }
+.badge { display: inline-block; padding: 0 .4rem; border-radius: .25rem; background: #e8eef5; font-size: .75rem; }
+.badge.known { background: #d9ecff; }
+.badge.overdue { background: #ffd6d6; }
+.badge.inbound { background: #d9f5e3; }
+.badge.tracked { background: #e3f1ff; }
+.badge.crm { background: #fff1cc; }
+.tag.open, .tag.in_progress { background: #fff1cc; }
+.tag.completed { background: #d9f5e3; }
+.tag.rejected { background: #e8e8e8; }
+ul.compact { padding-left: 1rem; margin: .3rem 0; }

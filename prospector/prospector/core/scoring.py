@@ -257,21 +257,23 @@ def build_context(
             else None,
         )
         for strategy in ("mobile", "desktop"):
-            snap: PerformanceSnapshot | None = website.latest_performance(strategy)
-            if snap is not None:
+            lab: PerformanceSnapshot | None = website.latest_performance(strategy)
+            fld: PerformanceSnapshot | None = website.latest_field_performance(strategy)
+            if lab is not None or fld is not None:
                 setattr(
                     perf_ns,
                     strategy,
                     Namespace(
-                        lh_performance=snap.lh_performance,
-                        lcp_ms=snap.lcp_ms,
-                        tbt_ms=snap.tbt_ms,
-                        cls=snap.cls,
-                        ttfb_ms=snap.ttfb_ms,
-                        field_lcp_p75=snap.field_lcp_p75,
-                        field_inp_p75=snap.field_inp_p75,
-                        field_cls_p75=snap.field_cls_p75,
-                        field_available=snap.field_available,
+                        lh_performance=lab.lh_performance if lab else None,
+                        lcp_ms=lab.lcp_ms if lab else None,
+                        tbt_ms=lab.tbt_ms if lab else None,
+                        cls=lab.cls if lab else None,
+                        ttfb_ms=lab.ttfb_ms if lab else None,
+                        field_lcp_p75=fld.field_lcp_p75 if fld else None,
+                        field_inp_p75=fld.field_inp_p75 if fld else None,
+                        field_cls_p75=fld.field_cls_p75 if fld else None,
+                        field_available=fld is not None,
+                        field_source=fld.source if fld else None,
                     ),
                 )
     org_ns = Namespace(

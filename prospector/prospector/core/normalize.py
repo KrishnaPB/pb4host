@@ -133,6 +133,23 @@ def is_generic_mailbox(email: str) -> bool:
     return local in GENERIC_MAILBOXES
 
 
+FREEMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.in", "yahoo.in", "yahoo.co.uk", "ymail.com", "rocketmail.com",
+    "outlook.com", "outlook.in", "hotmail.com", "hotmail.co.uk", "hotmail.in", "live.com", "live.in", "msn.com",
+    "rediffmail.com", "rediff.com", "protonmail.com", "proton.me", "pm.me", "icloud.com", "me.com", "mac.com",
+    "aol.com", "yandex.com", "yandex.ru", "mail.com", "gmx.com", "gmx.de", "gmx.net", "zohomail.in", "zohomail.com",
+    "fastmail.com", "hey.com", "tutanota.com", "tuta.io", "mail.ru", "qq.com", "163.com",
+}
+
+
+def is_freemail_domain(email_or_domain: str | None) -> bool:
+    """True for personal webmail domains, which never identify a business website."""
+    if not email_or_domain:
+        return False
+    domain = email_or_domain.rsplit("@", 1)[-1].strip().lower()
+    return domain in FREEMAIL_DOMAINS
+
+
 def normalize_name(name: str | None) -> str:
     if not name:
         return ""

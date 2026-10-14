@@ -1,0 +1,14 @@
+{% if error %}<p class="error"><small>{{ error }}</small></p>{% endif %}
+{% if hits %}
+<table>
+  <thead><tr><th>Company</th><th>No.</th><th>Status</th><th>Address</th><th></th></tr></thead>
+  <tbody>
+  {% for h in hits %}
+  <tr><td>{{ h.title }}</td><td><code>{{ h.company_number }}</code></td><td>{{ h.status or '' }}</td><td><small>{{ h.address or '' }}</small></td>
+    <td><form method="post" action="/organizations/{{ org.id }}/registry/apply" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="company_number" value="{{ h.company_number }}"><button class="secondary outline small">Apply</button></form></td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<small>Applying stores legal name, company number, registered address and country as facts with source <code>companies_house</code>. Officers are never stored.</small>
+{% elif query %}<p><small>No companies matched “{{ query }}”.</small></p>{% endif %}

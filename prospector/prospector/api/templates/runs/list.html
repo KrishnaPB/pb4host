@@ -5,14 +5,14 @@
   <article>
     <header><strong>Discovery runs</strong></header>
     <table>
-      <thead><tr><th>#</th><th>Query</th><th>Track</th><th>Status</th><th>Pages</th><th>Found</th><th>No site</th><th>New</th><th>Matched</th><th>Started</th></tr></thead>
+      <thead><tr><th>#</th><th>Source</th><th>Query</th><th>Track</th><th>Status</th><th>Pages</th><th>Found</th><th>No site</th><th>New</th><th>Matched</th><th>Started</th></tr></thead>
       <tbody>
       {% for r in runs %}
-      <tr><td><a href="/runs/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.query }}{% if r.location %} <small>in {{ r.location }}</small>{% endif %}</td>
+      <tr><td><a href="/runs/{{ r.id }}">{{ r.id }}</a></td><td><small>{{ r.provider }}</small></td><td>{{ r.query }}{% if r.location %} <small>in {{ r.location }}</small>{% endif %}</td>
         <td>{{ r.track }}</td><td><span class="tag {{ r.status }}">{{ r.status }}</span>{% if r.error %}<br><small class="error">{{ r.error[:120] }}</small>{% endif %}</td>
         <td class="num">{{ r.pages_fetched }}/{{ r.max_pages }}</td><td class="num">{{ r.candidates_found }}</td><td class="num">{{ r.candidates_without_website }}</td>
         <td class="num">{{ r.organizations_created }}</td><td class="num">{{ r.organizations_matched }}</td><td>{{ r.created_at|dt }}</td></tr>
-      {% else %}<tr><td colspan="10">No runs yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="11">No runs yet.</td></tr>{% endfor %}
       </tbody>
     </table>
   </article>
@@ -29,6 +29,35 @@
       <button type="submit">Queue run</button>
       <small>Uses Google Places Text Search. Only place IDs and coordinates (30 days) are stored; business facts are taken
         from each business's own website afterwards. Each page costs one API call.</small>
+    </form>
+  </article>
+</div>
+<div class="grid">
+  <article>
+    <header><strong>GitHub agencies</strong> <small>(agency track)</small></header>
+    <form method="post" action="/runs/github">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="grid">
+        <label>Location <input name="location" placeholder="Bengaluru" required></label>
+        <label>Extra terms <input name="query" placeholder="wordpress (optional)"></label>
+        <label>Pages (×30 orgs) <input type="number" name="max_pages" value="1" min="1" max="{{ settings.github_pages_per_run }}"></label>
+      </div>
+      <button type="submit" class="secondary">Queue GitHub run</button>
+      <small>Organisations with PHP repositories in that location; keeps name, website, location and WordPress repo count only — no member data, no e-mails.</small>
+    </form>
+  </article>
+  <article>
+    <header><strong>HTTP Archive + CrUX feed</strong> <small>(monthly, owner only)</small></header>
+    <form method="post" action="/runs/httparchive">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="grid">
+        <label>Crawl month <input name="month" placeholder="2026-09" pattern="20[0-9][0-9]-[01][0-9]" required></label>
+        <label>Country <input name="country" value="{{ settings.httparchive_default_country }}" maxlength="2"></label>
+        <label>Limit <input type="number" name="limit" value="{{ settings.httparchive_default_limit }}" min="10" max="5000"></label>
+      </div>
+      <button type="submit" class="secondary" {% if user.role != 'owner' %}disabled{% endif %}>Queue feed run</button>
+      <small>One BigQuery query: WordPress origins with poor real-user mobile LCP. Refuses to run when the dry-run estimate exceeds
+        {{ (settings.httparchive_max_bytes / 1073741824)|round|int }} GB. Needs BIGQUERY_PROJECT and credentials.</small>
     </form>
   </article>
 </div>

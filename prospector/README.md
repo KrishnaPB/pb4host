@@ -1,7 +1,7 @@
 # PB4HOST Prospector
 
 Organisation-first lead discovery and enrichment for PB4HOST's WordPress support business.
-This is the Phase 1 MVP described in
+This is the Phase 1 MVP plus the Phase 2 scope (inbound consent capture, CRM sync, feeds, rights workflow) described in
 [`docs/customer-intelligence-app-implementation-plan.md`](../docs/customer-intelligence-app-implementation-plan.md)
 and it honours the compliance rules R1–R11 from that plan by construction, not by convention.
 
@@ -19,12 +19,19 @@ and it honours the compliance rules R1–R11 from that plan by construction, not
 5. Gives analysts an **HTMX review UI**: runs, review queue with filters, organisation detail with full evidence,
    live Google attribution panel (never stored), manual capture, imports, suppression/rights handling,
    CSV exports with notice text, connector kill switches, job queue and audit log.
+6. **Phase 2** — captures **inbound leads with consent** (signed webhook from pb4host.com, hosted forms, optional
+   *Sign In with LinkedIn* OIDC pre-fill), imports the **owner's own LinkedIn connections** ("people you know"),
+   adds **CrUX field data**, a monthly **HTTP Archive + CrUX feed**, **GitHub agency discovery** and **Companies House**
+   (UK), pushes qualified/inbound organisations to **EspoCRM** and pulls status back, tracks **notices** per
+   organisation, runs a **rights-request workflow** (one-click erasure that removes the person and anonymises
+   organisation history), and re-checks tracked organisations and customers **weekly**.
 
 **What it deliberately does not do**
 
 - Automated connectors never create person records (R2); named contacts exist only via manual research with a
-  lawful basis, CSV imports with a declared basis (existing customers, the owner's own LinkedIn export), or —
-  in Phase 2 — inbound consent flows.
+  lawful basis, CSV imports with a declared basis (existing customers), the owner's own LinkedIn connections export
+  (owner seat, legitimate interest with an LIA, 1:1 contact only, excluded from bulk exports) or inbound consent flows
+  (webhook / hosted form / LinkedIn OIDC — consent text version and proof stored).
 - No LinkedIn scraping or automation; LinkedIn data enters only through the compliant routes above.
 - No bulk unsolicited messaging, no SMS/voice telemarketing. Exports carry a notice text for 1:1 outreach.
 - No Google Places content beyond place ID + coordinates is persisted (R3); the detail panel is live-only.
@@ -43,8 +50,8 @@ prospector serve                # http://localhost:8000
 prospector worker               # in a second terminal
 ```
 
-Run the tests: `pytest -q` (57 tests: unit, connector contracts with mocked HTTP, compliance R1–R11, API, and an
-end-to-end pipeline through the job queue).
+Run the tests: `pytest -q` (101 tests: unit, connector contracts with mocked HTTP, compliance R1–R11, API, inbound
+forms/webhook/OIDC, CRM push/pull, rights workflow, and an end-to-end pipeline through the job queue).
 
 ## Turning on real data sources
 
@@ -55,6 +62,14 @@ end-to-end pipeline through the job queue).
 | `dns_asn` | owner terms review (Team Cymru IP-to-ASN DNS service) | free |
 | `pagespeed` | owner terms review; `PSI_API_KEY` recommended (25k queries/day) | free |
 | `csv_import` | nothing | analyst role |
+| `inbound_webhook` | `INBOUND_WEBHOOK_SECRET` shared with the pb4host.com form handler (see runbook §3a); hosted forms work without it | consent captured per submission |
+| `linkedin_oidc` | `LINKEDIN_CLIENT_ID/SECRET` from a LinkedIn app with *Sign In with LinkedIn using OpenID Connect*; redirect `${BASE_URL}/auth/linkedin/callback` | identity only; token discarded |
+| `linkedin_connections` | owner uploads `Connections.csv` (Imports page or `prospector import-connections`) | legitimate interest, LIA reference recorded |
+| `crux` | `CRUX_API_KEY` (or reuses `PSI_API_KEY`); owner terms review | free, 150 qpm |
+| `httparchive_feed` | `pip install ".[bigquery]"`, `BIGQUERY_PROJECT`, service-account file; owner role | fails closed above `HTTPARCHIVE_MAX_BYTES` |
+| `github_orgs` | `GITHUB_TOKEN` (read-only public); owner terms review | organisation metadata only, never e-mails |
+| `companies_house` | `COMPANIES_HOUSE_API_KEY` | UK register; officers live-only |
+| `espocrm` (CRM) | `ESPOCRM_BASE_URL`, `ESPOCRM_API_KEY` (bundled instance: `docker compose --profile crm up -d`) | pushes notice-ready records; pulls status every 6 h |
 
 Every connector has an enable/disable switch, a daily cap, and a 90-day terms review timer (R10). Calls stop with a
 clear error when the cap is reached and resume automatically the next day.

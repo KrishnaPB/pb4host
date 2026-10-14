@@ -36,6 +36,8 @@ class Worker:
         session = session_factory()()
         try:
             enqueue(session, "retention_purge", {}, idempotency_key=f"retention:{today}")
+            enqueue(session, "schedule_rechecks", {}, idempotency_key=f"rechecks:{today}")
+            enqueue(session, "crm_pull_statuses", {}, idempotency_key=f"crm-pull:{today}")
             session.commit()
         finally:
             session.close()

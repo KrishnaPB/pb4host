@@ -1,0 +1,5 @@
+{% if error %}<p class="error"><small>{{ error }}</small></p>{% endif %}
+{% if officers %}
+<ul class="compact">{% for o in officers %}<li><small>{{ o.name }} — {{ o.role }}{% if o.appointed_on %} since {{ o.appointed_on }}{% endif %}{% if o.resigned_on %} (resigned {{ o.resigned_on }}){% endif %}</small></li>{% endfor %}</ul>
+<small>Live from Companies House ({{ company_number }}); viewing is audited; add a person only via the manual research form with a lawful basis.</small>
+{% elif not error %}<p><small>No current officers listed.</small></p>{% endif %}

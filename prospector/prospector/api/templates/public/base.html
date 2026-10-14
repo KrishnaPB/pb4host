@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ business_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/vendor/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <meta name="robots" content="noindex">
+</head>
+<body>
+<main class="container public-form">
+  {% block content %}{% endblock %}
+</main>
+<footer class="container">
+  <small>{{ business_name }} · <a href="{{ privacy_url or settings.privacy_notice_url }}" rel="noopener">Privacy notice</a> ·
+    we store only what you enter here and never buy or scrape contact lists.</small>
+</footer>
+</body>
+</html>

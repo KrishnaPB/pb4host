@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Rights requests{% endblock %}
+{% block content %}
+<h2>Rights requests <small>(access · erasure · objection · correction · consent withdrawal)</small></h2>
+<div class="grid two-one">
+  <article>
+    <header><strong>Open a request</strong> <small>— every request gets a due date ({{ due_days }} days) and an audit trail</small></header>
+    <form method="post" action="/rights/requests">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="grid">
+        <select name="kind">{% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select>
+        <input name="subject" placeholder="e-mail, phone or domain of the requester" required>
+        <select name="channel"><option>email</option><option>form</option><option>phone</option><option>letter</option><option>linkedin</option><option>whatsapp</option></select>
+      </div>
+      <div class="grid">
+        <input name="received_at" placeholder="received at (ISO, optional — defaults to now)">
+        <input name="details" placeholder="what exactly was asked (optional)">
+        <button type="submit">Open request</button>
+      </div>
+    </form>
+  </article>
+  <article>
+    <header><strong>How to handle</strong></header>
+    <ol>
+      <li>Open the request here (it auto-matches organisations and contacts by the identifier).</li>
+      <li>From the detail page: export what we hold (access), erase/suppress (erasure/objection), or fix a fact (correction).</li>
+      <li>Reply to the person, then close the request with a resolution note.</li>
+    </ol>
+    <p><small>Overdue requests are flagged on the dashboard. Suppression hashes are kept forever so the person is never re-added.</small></p>
+  </article>
+</div>
+<p>
+  <a href="/rights/requests" role="button" class="{{ 'secondary' if filter_status else '' }} outline small">all</a>
+  {% for s in statuses %}<a href="/rights/requests?status={{ s }}" role="button" class="{{ '' if filter_status == s else 'secondary' }} outline small">{{ s }}</a> {% endfor %}
+</p>
+<table role="grid">
+  <thead><tr><th>#</th><th>kind</th><th>subject</th><th>received</th><th>due</th><th>status</th><th>organisation</th><th>contact</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/rights/requests/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.kind }}</td><td>{{ r.subject }}</td>
+    <td>{{ r.received_at|dt }}</td>
+    <td>{{ r.due_at|dt('%Y-%m-%d') }}{% if r.overdue %} <span class="badge overdue">overdue</span>{% endif %}</td>
+    <td><span class="tag {{ r.status }}">{{ r.status }}</span></td>
+    <td>{% if r.organization_id %}<a href="/organizations/{{ r.organization_id }}">#{{ r.organization_id }}</a>{% else %}—{% endif %}</td>
+    <td>{{ r.person_id or '—' }}</td>
+  </tr>
+  {% else %}<tr><td colspan="8">No requests{% if filter_status %} with status {{ filter_status }}{% endif %}.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

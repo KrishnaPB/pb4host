@@ -207,6 +207,140 @@ def spike(
     typer.echo(f"wrote {out} — fill in human_review for the precision check (target ≥90% CMS, ≥85% contact facts)")
 
 
+@app.command("github-run")
+def github_run(
+    location: str = typer.Argument(..., help='e.g. "Bengaluru"'),
+    query: str = typer.Option("", help="extra search terms, e.g. wordpress"),
+    pages: int = typer.Option(1, min=1),
+    wait: bool = typer.Option(False, help="Process the queue inline until idle."),
+):
+    """Queue a GitHub organisation discovery run (agency track; organisation metadata only)."""
+    _boot()
+    from .api.routers.runs import create_run
+    from .jobs.queue import run_pending
+
+    with session_factory()() as session:
+        run = create_run(session, query=query, location=location, track="agency", max_pages=pages, region_code=None, user=None,
+                         provider="github_orgs")
+        session.commit()
+        typer.echo(f"queued GitHub run #{run.id}")
+    if wait:
+        typer.echo(f"processed {run_pending(session_factory())} job(s)")
+
+
+feed_app = typer.Typer(help="Monthly discovery feeds.")
+app.add_typer(feed_app, name="feed")
+
+
+@feed_app.command("httparchive")
+def feed_httparchive(
+    month: str = typer.Argument(..., help="crawl month, e.g. 2026-09"),
+    country: str = typer.Option("", help="two-letter CrUX country code (default from settings)"),
+    limit: int = typer.Option(0, help="max origins (default from settings)"),
+    wait: bool = typer.Option(False, help="Process the queue inline until idle."),
+):
+    """Queue the HTTP Archive + CrUX BigQuery feed (WordPress origins with poor mobile LCP). Fails closed above the byte budget."""
+    _boot()
+    from .api.routers.runs import create_run
+    from .config import get_settings
+    from .jobs.queue import run_pending
+
+    settings = get_settings()
+    country = (country or settings.httparchive_default_country).lower()
+    limit = limit or settings.httparchive_default_limit
+    with session_factory()() as session:
+        run = create_run(session, query=f"{country} {month}", location=None, track="smb", max_pages=1, region_code=country.upper(), user=None,
+                         provider="httparchive_feed", feed={"month": month, "country": country, "limit": limit})
+        session.commit()
+        typer.echo(f"queued HTTP Archive feed run #{run.id} ({month}/{country}, limit {limit})")
+    if wait:
+        typer.echo(f"processed {run_pending(session_factory())} job(s)")
+
+
+@app.command("import-connections")
+def import_connections(path: Path = typer.Argument(..., exists=True, readable=True, help="LinkedIn Connections.csv (owner's own export)")):
+    """Import the owner's own LinkedIn connections (legitimate interest, 1:1 contact only)."""
+    _boot()
+    from sqlalchemy import select
+
+    from .connectors.linkedin_connections import LinkedInConnectionsConnector, parse_connections_csv
+    from .models import ImportBatch, User
+
+    with session_factory()() as session:
+        owner = session.scalar(select(User).where(User.role == "owner").order_by(User.id))
+        if owner is None:
+            raise typer.BadParameter("create an owner user first (prospector create-user --role owner)")
+        rows = parse_connections_csv(path.read_bytes())
+        batch = ImportBatch(kind="linkedin_connections", filename=path.name, track="unknown", column_mapping={},
+                            lawful_basis="legitimate_interest", imported_by=owner.id)
+        session.add(batch)
+        session.flush()
+        summary = LinkedInConnectionsConnector().import_rows(session, batch, rows, actor=owner)
+        session.commit()
+    typer.echo(f"{summary.rows} rows: {summary.created} new, {summary.updated} updated, {summary.linked} linked, {summary.unlinked} unlinked")
+
+
+crm_app = typer.Typer(help="CRM synchronisation (EspoCRM).")
+app.add_typer(crm_app, name="crm")
+
+
+@crm_app.command("push")
+def crm_push(organization_id: int = typer.Argument(...), wait: bool = typer.Option(True, help="Push inline instead of queueing.")):
+    """Push one organisation (and its notice-ready contacts) to the CRM."""
+    _boot()
+    from .api.routers.exports import notice_text
+    from .config import get_settings
+    from .crm.sync import build_adapter, eligibility, push_organization
+    from .jobs.tasks import enqueue_crm_sync
+    from .models import Organization
+
+    settings = get_settings()
+    if not settings.crm_configured:
+        raise typer.BadParameter("set ESPOCRM_BASE_URL and ESPOCRM_API_KEY first")
+    with session_factory()() as session:
+        org = session.get(Organization, organization_id)
+        if org is None:
+            raise typer.BadParameter(f"no organisation #{organization_id}")
+        ok, reason = eligibility(session, org)
+        if not ok:
+            raise typer.BadParameter(f"not pushable: {reason}")
+        if not wait:
+            enqueue_crm_sync(session, org.id, reason="cli", force=True)
+            session.commit()
+            typer.echo("queued")
+            return
+        outcome = push_organization(session, org, build_adapter(settings), notice_text=notice_text(org), settings=settings, force=True)
+        session.commit()
+    typer.echo(f"{outcome.reason}: account {outcome.account.remote_id if outcome.account else '-'}, {len(outcome.contacts)} contact(s)")
+
+
+@crm_app.command("pull")
+def crm_pull(limit: int = typer.Option(500)):
+    """Pull account status back from the CRM for every linked organisation."""
+    _boot()
+    from .jobs.tasks import crm_pull_statuses
+
+    with session_factory()() as session:
+        crm_pull_statuses(session, {"limit": limit})
+        session.commit()
+    typer.echo("done")
+
+
+@app.command("recheck")
+def recheck(limit: int = typer.Option(200), wait: bool = typer.Option(False, help="Process the queue inline until idle.")):
+    """Queue the weekly light re-check for tracked organisations that are due."""
+    _boot()
+    from .jobs.queue import run_pending
+    from .jobs.tasks import schedule_rechecks
+
+    with session_factory()() as session:
+        n = schedule_rechecks(session, {"limit": limit})
+        session.commit()
+    typer.echo(f"queued {n} re-check(s)")
+    if wait:
+        typer.echo(f"processed {run_pending(session_factory())} job(s)")
+
+
 @app.command("retention")
 def retention(dry_run: bool = typer.Option(False)):
     """Run the retention policy once and print the report."""

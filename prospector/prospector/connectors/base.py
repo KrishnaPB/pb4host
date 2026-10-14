@@ -67,6 +67,11 @@ class Connector:
     default_daily_cap: ClassVar[int] = 1000
     cost_per_call_usd: ClassVar[float] = 0.0
     creates_persons: ClassVar[bool] = False  # R2: automated connectors never create persons
+    # Why a connector may create persons at all; None for every automated source.
+    # "import"  → a human uploaded rows and chose a lawful basis at import time
+    # "consent" → the person themselves submitted the form / signed in
+    # "owner_export" → the owner's own relationship data (LinkedIn connections export)
+    person_route: ClassVar[str | None] = None
     policy: StoragePolicy = PassthroughPolicy()
 
     def __init__(self, settings: Settings | None = None) -> None:
@@ -157,7 +162,20 @@ def register(cls: type[Connector]) -> type[Connector]:
 
 def ensure_connector_states(session: Session) -> list[ConnectorState]:
     # Import modules so they register themselves
-    from . import csv_import, dns_asn, google_places, pagespeed  # noqa: F401
+    from ..crm import sync  # noqa: F401
+    from . import (  # noqa: F401
+        companies_house,
+        crux,
+        csv_import,
+        dns_asn,
+        github_orgs,
+        google_places,
+        httparchive_feed,
+        inbound_webhook,
+        linkedin_connections,
+        linkedin_oidc,
+        pagespeed,
+    )
     from .website_probe import probe  # noqa: F401
 
     rows = []

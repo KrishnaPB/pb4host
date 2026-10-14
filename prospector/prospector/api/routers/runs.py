@@ -13,21 +13,29 @@ from ..deps import csrf_protect, current_user, flash, get_db, redirect, render, 
 router = APIRouter(prefix="/runs", tags=["runs"])
 
 
-def create_run(db: Session, *, query: str, location: str | None, track: str, max_pages: int, region_code: str | None, user: User | None) -> DiscoveryRun:
+def create_run(db: Session, *, query: str, location: str | None, track: str, max_pages: int, region_code: str | None, user: User | None,
+               provider: str = "google_places", feed: dict | None = None) -> DiscoveryRun:
     settings = get_settings()
+    if provider == "github_orgs":
+        pages_cap, job, extra = settings.github_pages_per_run, "github_org_search", {"page_no": 1}
+    elif provider == "httparchive_feed":
+        pages_cap, job, extra = 1, "httparchive_feed_run", dict(feed or {})
+    else:
+        provider, pages_cap, job, extra = "google_places", settings.places_pages_per_run, "places_text_search", {"page_no": 1}
     run = DiscoveryRun(
         track=track if track in {"smb", "agency"} else "smb",
-        provider="google_places",
+        provider=provider,
         query=query.strip(),
         location=(location or "").strip() or None,
         region_code=(region_code or settings.places_region_code or None),
-        max_pages=max(1, min(int(max_pages or 1), settings.places_pages_per_run)),
+        max_pages=max(1, min(int(max_pages or 1), pages_cap)),
         started_by=user.id if user and user.id else None,
     )
     db.add(run)
     db.flush()
-    enqueue(db, "places_text_search", {"run_id": run.id, "page_no": 1}, idempotency_key=f"run:{run.id}:page:1", scrub_on_done=True)
-    audit.log(db, "run.create", actor=user, entity_type="discovery_run", entity_id=run.id, query=run.query, location=run.location, track=run.track)
+    enqueue(db, job, {"run_id": run.id, **extra}, idempotency_key=f"run:{run.id}:page:1", scrub_on_done=provider == "google_places")
+    audit.log(db, "run.create", actor=user, entity_type="discovery_run", entity_id=run.id, provider=provider, query=run.query,
+              location=run.location, track=run.track)
     return run
 
 
@@ -53,6 +61,29 @@ def new_run(
         return redirect("/runs")
     run = create_run(db, query=query, location=location, track=track, max_pages=max_pages, region_code=None, user=user)
     flash(request, f"Run #{run.id} queued. The worker will fetch up to {run.max_pages} page(s) of results.", "success")
+    return redirect(f"/runs/{run.id}")
+
+
+@router.post("/github", dependencies=[Depends(csrf_protect)])
+def new_github_run(request: Request, location: str = Form(...), query: str = Form(""), max_pages: int = Form(1),
+                   db: Session = Depends(get_db), user: User = Depends(require_role("analyst"))):
+    if not location.strip():
+        flash(request, "Location is required for GitHub organisation discovery.", "error")
+        return redirect("/runs")
+    run = create_run(db, query=query, location=location, track="agency", max_pages=max_pages, region_code=None, user=user, provider="github_orgs")
+    flash(request, f"GitHub run #{run.id} queued (organisations in {run.location}).", "success")
+    return redirect(f"/runs/{run.id}")
+
+
+@router.post("/httparchive", dependencies=[Depends(csrf_protect)])
+def new_httparchive_run(request: Request, month: str = Form(...), country: str = Form(""), limit: int = Form(0),
+                        db: Session = Depends(get_db), user: User = Depends(require_role("owner"))):
+    settings = get_settings()
+    country = (country or settings.httparchive_default_country).lower().strip()
+    limit = int(limit or settings.httparchive_default_limit)
+    run = create_run(db, query=f"{country} {month.strip()}", location=None, track="smb", max_pages=1, region_code=country.upper(), user=user,
+                     provider="httparchive_feed", feed={"month": month.strip(), "country": country, "limit": limit})
+    flash(request, f"HTTP Archive feed run #{run.id} queued for {month} / {country}; it fails closed above the BigQuery byte budget.", "success")
     return redirect(f"/runs/{run.id}")
 
 

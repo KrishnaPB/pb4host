@@ -18,10 +18,18 @@
   <ul>
     <li><a href="/runs" {% if path.startswith('/runs') %}aria-current="page"{% endif %}>Runs</a></li>
     <li><a href="/organizations" {% if path.startswith('/organizations') %}aria-current="page"{% endif %}>Organisations</a></li>
+    <li><a href="/inbound" {% if path.startswith('/inbound') %}aria-current="page"{% endif %}>Inbound</a></li>
+    <li><a href="/people" {% if path.startswith('/people') %}aria-current="page"{% endif %}>People</a></li>
     <li><a href="/capture" {% if path.startswith('/capture') %}aria-current="page"{% endif %}>Capture</a></li>
     <li><a href="/imports" {% if path.startswith('/imports') %}aria-current="page"{% endif %}>Imports</a></li>
     <li><a href="/exports" {% if path.startswith('/exports') %}aria-current="page"{% endif %}>Exports</a></li>
-    <li><a href="/suppressions" {% if path.startswith('/suppressions') or path.startswith('/rights') %}aria-current="page"{% endif %}>Rights &amp; DNC</a></li>
+    <li><details class="dropdown">
+      <summary {% if path.startswith('/suppressions') or path.startswith('/rights') %}aria-current="page"{% endif %}>Rights</summary>
+      <ul dir="rtl">
+        <li><a href="/rights/requests">Requests</a></li>
+        <li><a href="/suppressions">Suppression &amp; lookup</a></li>
+      </ul>
+    </details></li>
     <li><details class="dropdown">
       <summary>Admin</summary>
       <ul dir="rtl">

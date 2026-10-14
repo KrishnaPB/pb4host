@@ -24,7 +24,9 @@ from .routers import (
     exports,
     health,
     imports,
+    inbound,
     organizations,
+    rights,
     runs,
     suppressions,
 )
@@ -58,6 +60,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         flash(request, str(exc), "error")
         return render(request, "error.html", {"message": str(exc)}, status_code=409)
 
-    for router in (auth, dashboard, runs, organizations, imports, capture, suppressions, exports, admin, health, api_v1):
+    for router in (auth, dashboard, runs, organizations, imports, capture, suppressions, rights, exports, inbound, admin, health, api_v1):
         app.include_router(router.router)
     return app

@@ -51,7 +51,7 @@ def capture(
         flash(request, "A public reference URL is required for provenance.", "error")
         return redirect("/capture")
     resolved = resolve_organization(db, website=website or None, name=company, city=city or None,
-                                    country=(country or None), track=track)
+                                    country=(country or None), track=track, lead_source="manual")
     org = resolved.organization
     if resolved.profile_url:
         website = ""  # a hosted profile is a social link, not a website to probe

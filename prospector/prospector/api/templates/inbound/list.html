@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Inbound{% endblock %}
+{% block content %}
+<h2>Inbound submissions <small>(consented, source #1)</small></h2>
+<div class="grid">
+  <article>
+    <header><strong>Hosted forms</strong></header>
+    <ul>{% for key, f in forms.items() %}<li><a href="/forms/{{ key }}" target="_blank">{{ f.title }}</a> — <code>{{ base_url }}/forms/{{ key }}</code> · track {{ f.track }}</li>{% endfor %}</ul>
+    <small>LinkedIn sign-in: {% if linkedin_configured %}<span class="ok">configured</span>{% else %}not configured (LINKEDIN_CLIENT_ID/SECRET){% endif %}
+      · needs the <code>linkedin_oidc</code> connector enabled and reviewed.</small>
+  </article>
+  <article>
+    <header><strong>Website webhook</strong></header>
+    <p>pb4host.com forms post signed JSON to <code>POST {{ base_url }}/inbound/forms/&lt;form&gt;</code>
+      ({% if webhook_configured %}<span class="ok">secret configured</span>{% else %}<span class="error">INBOUND_WEBHOOK_SECRET not set</span>{% endif %}).
+      Headers: <code>X-Prospector-Timestamp</code>, <code>X-Prospector-Signature</code>, optional <code>X-Prospector-Idempotency-Key</code>.
+      See the runbook for the PHP snippet.</p>
+  </article>
+</div>
+<table role="grid">
+  <thead><tr><th>#</th><th>received</th><th>form</th><th>via</th><th>organisation</th><th>person</th><th>status</th><th>message</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.id }}</td><td>{{ r.received_at|dt }}</td><td>{{ r.form_key }}</td><td>{{ r.captured_via }}</td>
+    <td>{% if r.organization_id %}<a href="/organizations/{{ r.organization_id }}">#{{ r.organization_id }}</a>{% else %}—{% endif %}</td>
+    <td>{{ r.person_id or '—' }}</td><td><span class="tag {{ r.status }}">{{ r.status }}</span>{% if r.error %} <small class="error">{{ r.error }}</small>{% endif %}</td>
+    <td><small>{{ (r.message or '')[:120] }}</small></td>
+  </tr>
+  {% else %}<tr><td colspan="8">No submissions yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

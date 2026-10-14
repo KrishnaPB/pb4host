@@ -93,6 +93,8 @@ def persons_csv(db: Session = Depends(get_db), user: User = Depends(require_role
     count = 0
     for person in db.scalars(select(Person).order_by(Person.id)):
         org = person.organization
+        if org is None or person.source == "linkedin_connections":
+            continue  # unlinked rows and the owner's own connections (1:1 contact only) never bulk-export
         if not person.exportable or org.status in {"suppressed", "anonymised", "merged"} or organization_is_suppressed(db, org):
             continue
         writer.writerow([person.id, org.id, org.label, person.full_name, person.role_title or "", person.email or "",

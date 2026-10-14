@@ -21,6 +21,21 @@
       {% for c in connectors %}<tr><td>{{ c.name }}</td><td>{% if not c.enabled %}<span class="tag off">off</span>{% elif c.requires_terms_review and not c.terms_reviewed_at %}<span class="tag warn">review</span>{% else %}<span class="tag ok">on</span>{% endif %}</td><td class="num">{{ c.calls_today }}/{{ c.daily_cap }}</td></tr>{% endfor %}
     </table></article>
 </div>
+<div class="grid stats">
+  <article><header>Inbound</header>
+    <p><strong>{{ phase2.inbound_7d }}</strong> submissions in 7 days · <strong>{{ phase2.inbound_open }}</strong> inbound leads open</p>
+    <small><a href="/inbound">inbound list →</a> · <a href="/organizations?lead_source=inbound&sort=inbound">queue</a></small></article>
+  <article><header>People you know</header>
+    <p><strong>{{ phase2.known }}</strong> connections linked to organisations</p>
+    <small><a href="/people">people →</a> · <a href="/organizations?known=yes">organisations where you know someone</a></small></article>
+  <article><header>Tracking &amp; CRM</header>
+    <p><strong>{{ phase2.tracked }}</strong> tracked ({{ phase2.recheck_due }} due for re-check) · <strong>{{ phase2.crm_linked }}</strong> in CRM</p>
+    <small><a href="/organizations?tracked=yes">tracked list →</a></small></article>
+  <article><header>Rights requests</header>
+    <p><strong>{{ phase2.rights_open }}</strong> open{% if phase2.rights_overdue %} · <span class="badge overdue">{{ phase2.rights_overdue }} overdue</span>{% endif %}
+      {% if phase2.rights_next_due %}<br><small>next due {{ phase2.rights_next_due|dt('%Y-%m-%d') }}</small>{% endif %}</p>
+    <small><a href="/rights/requests">requests →</a></small></article>
+</div>
 <div class="grid">
   <article>
     <header><strong>Top open leads</strong> <a href="/organizations?status=new" class="right">review queue →</a></header>

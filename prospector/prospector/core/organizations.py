@@ -30,6 +30,7 @@ def resolve_organization(
     phones: list[str] | None = None,
     registry_ids: dict[str, str] | None = None,
     track: str = "unknown",
+    lead_source: str = "discovery",
 ) -> Resolved:
     profile_url = profile_network = None
     if website and (network := hosted_profile_network(website)):
@@ -55,6 +56,7 @@ def resolve_organization(
         city=city or None,
         track=track if track in {"smb", "agency", "unknown"} else "unknown",
         status="new",
+        lead_source=lead_source,
     )
     session.add(org)
     session.flush()
