@@ -113,6 +113,12 @@ class Organization(Base, TimestampMixin):
     )
     notes: Mapped[str | None] = mapped_column(Text)
     last_engaged_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Phase 2
+    lead_source: Mapped[str | None] = mapped_column(String(30), index=True)  # discovery/import/manual/inbound/github/httparchive
+    inbound_at: Mapped[datetime | None] = mapped_column(DateTime)  # first inbound (consented) submission
+    notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime)  # organisation-level notice (R7)
+    tracked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # weekly light re-check
+    next_recheck_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
 
     websites: Mapped[list[Website]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
@@ -124,6 +130,12 @@ class Organization(Base, TimestampMixin):
         back_populates="organization", cascade="all, delete-orphan"
     )
     persons: Mapped[list[Person]] = relationship(
+        back_populates="organization", cascade="all, delete-orphan"
+    )
+    crm_links: Mapped[list[CrmLink]] = relationship(
+        back_populates="organization", cascade="all, delete-orphan"
+    )
+    notice_events: Mapped[list[NoticeEvent]] = relationship(
         back_populates="organization", cascade="all, delete-orphan"
     )
 
@@ -145,6 +157,11 @@ class Organization(Base, TimestampMixin):
     @property
     def primary_website(self) -> Website | None:
         return self.websites[0] if self.websites else None
+
+    @property
+    def known_contacts(self) -> list[Person]:
+        """People from the owner's own LinkedIn connections export linked to this organisation."""
+        return [p for p in self.persons if p.source == "linkedin_connections"]
 
 
 class PlaceLink(Base):
@@ -215,8 +232,14 @@ class Website(Base, TimestampMixin):
 
     __table_args__ = (CheckConstraint(f"error_state in {ERROR_STATES}", name="ck_site_error"),)
 
-    def latest_performance(self, strategy: str = "mobile") -> PerformanceSnapshot | None:
-        rows = [p for p in self.performance if p.strategy == strategy]
+    def latest_performance(self, strategy: str = "mobile", source: str | None = "psi") -> PerformanceSnapshot | None:
+        """Newest Lighthouse (lab) snapshot by default; `source=None` means any source."""
+        rows = [p for p in self.performance if p.strategy == strategy and (source is None or p.source == source)]
+        return rows[-1] if rows else None
+
+    def latest_field_performance(self, strategy: str = "mobile") -> PerformanceSnapshot | None:
+        """Newest snapshot that carries real-user (CrUX) data, from PageSpeed or the CrUX API."""
+        rows = [p for p in self.performance if p.strategy == strategy and p.field_available]
         return rows[-1] if rows else None
 
 
@@ -308,8 +331,10 @@ class Person(Base, TimestampMixin):
     __tablename__ = "person"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    organization_id: Mapped[int] = mapped_column(
-        ForeignKey("organization.id", ondelete="CASCADE"), nullable=False, index=True
+    # Nullable since Phase 2: a connection from the owner's own LinkedIn export may not match
+    # any organisation yet; it is linked when one appears.
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organization.id", ondelete="CASCADE"), index=True
     )
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     role_title: Mapped[str | None] = mapped_column(String(200))
@@ -326,8 +351,12 @@ class Person(Base, TimestampMixin):
     notice_sent_at: Mapped[datetime | None] = mapped_column(DateTime)
     do_not_contact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    # Phase 2
+    external_id: Mapped[str | None] = mapped_column(String(120), index=True)  # e.g. LinkedIn OIDC `sub`
+    picture_url: Mapped[str | None] = mapped_column(Text)
+    meta: Mapped[dict[str, Any]] = mapped_column(JSONDict, default=dict, nullable=False)  # source extras (company, connected_on)
 
-    organization: Mapped[Organization] = relationship(back_populates="persons")
+    organization: Mapped[Organization | None] = relationship(back_populates="persons")
 
     __table_args__ = (
         CheckConstraint(f"lawful_basis in {LAWFUL_BASES}", name="ck_person_basis"),
@@ -337,6 +366,10 @@ class Person(Base, TimestampMixin):
     @property
     def exportable(self) -> bool:
         return not self.do_not_contact and self.notice_status != "objected"
+
+    @property
+    def is_known_connection(self) -> bool:
+        return self.source == "linkedin_connections"
 
 
 class Suppression(Base):
@@ -460,3 +493,104 @@ class ConnectorState(Base):
     calls_date: Mapped[date | None] = mapped_column(Date)
     last_called_at: Mapped[datetime | None] = mapped_column(DateTime)
     last_error: Mapped[str | None] = mapped_column(Text)
+
+
+# --- Phase 2 ---------------------------------------------------------------------------------
+RIGHTS_KINDS = ("access", "erasure", "objection", "correction", "withdraw_consent")
+RIGHTS_STATUSES = ("open", "in_progress", "completed", "rejected")
+NOTICE_CHANNELS = ("email", "linkedin", "whatsapp", "phone", "letter", "form", "crm")
+
+
+class InboundSubmission(Base):
+    """A consented inbound form submission (website webhook, hosted form or LinkedIn sign-in)."""
+
+    __tablename__ = "inbound_submission"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_key: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    captured_via: Mapped[str] = mapped_column(String(20), nullable=False)  # webhook / hosted_form / linkedin_oidc
+    status: Mapped[str] = mapped_column(String(20), default="processed", nullable=False)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organization.id", ondelete="SET NULL"), index=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id", ondelete="SET NULL"))
+    consent_id: Mapped[int | None] = mapped_column(ForeignKey("consent_record.id", ondelete="SET NULL"))
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    ip_hash: Mapped[str | None] = mapped_column(String(64))
+    message: Mapped[str | None] = mapped_column(Text)  # free-text left by the prospect
+    error: Mapped[str | None] = mapped_column(Text)
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False, index=True)
+
+
+class RightsRequest(Base):
+    """Data-subject request workflow (R6/R7): one row per request, with due date and resolution."""
+
+    __tablename__ = "rights_request"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)  # identifier as given (email / phone / domain)
+    channel: Mapped[str] = mapped_column(String(20), default="email", nullable=False)
+    details: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False, index=True)
+    organization_id: Mapped[int | None] = mapped_column(ForeignKey("organization.id", ondelete="SET NULL"))
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id", ondelete="SET NULL"))
+    received_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    due_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    assigned_to: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    resolution: Mapped[str | None] = mapped_column(Text)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    completed_by: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint(f"kind in {RIGHTS_KINDS}", name="ck_rights_kind"),
+        CheckConstraint(f"status in {RIGHTS_STATUSES}", name="ck_rights_status"),
+    )
+
+    @property
+    def overdue(self) -> bool:
+        return self.status in {"open", "in_progress"} and self.due_at < utcnow()
+
+
+class NoticeEvent(Base):
+    """Record of a privacy notice actually delivered (R7 notice tracking)."""
+
+    __tablename__ = "notice_event"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organization.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_id: Mapped[int | None] = mapped_column(ForeignKey("person.id", ondelete="SET NULL"))
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    template_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    text_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    sent_by: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    organization: Mapped[Organization] = relationship(back_populates="notice_events")
+
+    __table_args__ = (CheckConstraint(f"channel in {NOTICE_CHANNELS}", name="ck_notice_channel"),)
+
+
+class CrmLink(Base):
+    """Mapping between a Prospector entity and its record in the CRM (idempotent upserts)."""
+
+    __tablename__ = "crm_link"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    target: Mapped[str] = mapped_column(String(20), nullable=False)  # espocrm
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)  # organization / person
+    entity_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    organization_id: Mapped[int] = mapped_column(ForeignKey("organization.id", ondelete="CASCADE"), nullable=False, index=True)
+    remote_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    remote_url: Mapped[str | None] = mapped_column(Text)
+    push_hash: Mapped[str | None] = mapped_column(String(64))
+    remote_status: Mapped[str | None] = mapped_column(String(60))
+    last_pushed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_pulled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+    organization: Mapped[Organization] = relationship(back_populates="crm_links")
+
+    __table_args__ = (UniqueConstraint("target", "entity_type", "entity_id", name="uq_crm_link_entity"),)

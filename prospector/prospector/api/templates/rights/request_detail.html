@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Rights request #{{ req.id }}{% endblock %}
+{% block content %}
+<article>
+  <header><h2>Rights request #{{ req.id }} — {{ req.kind }} <span class="tag {{ req.status }}">{{ req.status }}</span>
+    {% if req.overdue %}<span class="badge overdue">overdue</span>{% endif %}</h2>
+    <p>Subject <code>{{ req.subject }}</code> · via {{ req.channel }} · received {{ req.received_at|dt }} · due <strong>{{ req.due_at|dt('%Y-%m-%d') }}</strong>
+      {% if req.completed_at %} · completed {{ req.completed_at|dt }}{% endif %}</p>
+  </header>
+  {% if req.details %}<p>{{ req.details }}</p>{% endif %}
+  <pre class="notes">{{ req.resolution or 'No resolution notes yet.' }}</pre>
+  {% if req.status not in ('completed', 'rejected') and user.role == 'owner' %}
+  <div class="grid">
+    <form method="post" action="/rights/requests/{{ req.id }}/fulfil" onsubmit="return confirm('Erase every matching contact, anonymise matching organisations, suppress the identifier and close this request?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="erase">
+      <label><input type="checkbox" name="include_org" value="1" checked> also anonymise the organisation(s) the matched contacts belong to</label>
+      <button class="contrast">Erase everything &amp; close</button>
+      <small>erasure / consent withdrawal: contacts deleted, organisation history anonymised, CRM records removed, identifiers suppressed forever</small>
+    </form>
+    <form method="post" action="/rights/requests/{{ req.id }}/fulfil" onsubmit="return confirm('Stop all contact for the matching records and close this request?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="stop_contact">
+      <button class="secondary">Stop contact &amp; close</button>
+      <small>objection: identifiers suppressed, contacts marked do-not-contact, records kept for the audit trail</small>
+    </form>
+  </div>
+  {% elif req.status not in ('completed', 'rejected') %}
+  <p><small>Only the owner can run erasure or stop-contact; use the matched records below to prepare an access export.</small></p>
+  {% endif %}
+  <form method="post" action="/rights/requests/{{ req.id }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == req.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      <select name="assigned_to"><option value="0">assign to…</option>{% for u in users %}<option value="{{ u.id }}" {% if u.id == req.assigned_to %}selected{% endif %}>{{ u.email }}</option>{% endfor %}</select>
+      <input name="resolution" placeholder="what was done / sent to the requester">
+      <button type="submit">Update</button>
+    </div>
+  </form>
+</article>
+<div class="grid">
+  <article>
+    <header><strong>Matched organisations</strong> ({{ matches.organizations|length }})</header>
+    {% for o in matches.organizations %}
+    <p><a href="/organizations/{{ o.id }}">#{{ o.id }} {{ o.label }}</a> · status {{ o.status }} ·
+      <a href="/rights/export/{{ o.id }}" class="small">export what we hold (JSON)</a>
+      {% if user.role == 'owner' %}
+      <form method="post" action="/rights/erase" class="inline" onsubmit="return confirm('Anonymise this organisation and suppress its identifiers?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="organization_id" value="{{ o.id }}">
+        <input type="hidden" name="reason" value="rights request #{{ req.id }} ({{ req.kind }})">
+        <button class="contrast outline small">Erase &amp; suppress</button>
+      </form>
+      {% endif %}
+    </p>
+    {% else %}<p>No organisation holds this identifier.</p>{% endfor %}
+  </article>
+  <article>
+    <header><strong>Matched contacts</strong> ({{ matches.persons|length }})</header>
+    {% for p in matches.persons %}
+    <p>{{ p.full_name }} {% if p.organization_id %}(<a href="/organizations/{{ p.organization_id }}">org #{{ p.organization_id }}</a>){% endif %} · basis {{ p.lawful_basis }} · notice {{ p.notice_status }}
+      {% if user.role == 'owner' %}
+      <form method="post" action="/rights/erase" class="inline" onsubmit="return confirm('Erase this contact and suppress their identifiers?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="person_id" value="{{ p.id }}">
+        <input type="hidden" name="reason" value="rights request #{{ req.id }} ({{ req.kind }})">
+        <button class="contrast outline small">Erase &amp; suppress</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/persons/{{ p.id }}/notice" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="notice_status" value="objected"><input type="hidden" name="do_not_contact" value="1">
+        <button class="secondary outline small">Mark objected</button>
+      </form>
+    </p>
+    {% else %}<p>No contact record holds this identifier.</p>{% endfor %}
+  </article>
+</div>
+<p><a href="/rights/requests">← all requests</a> · <a href="/suppressions">suppression list &amp; lookup</a></p>
+{% endblock %}

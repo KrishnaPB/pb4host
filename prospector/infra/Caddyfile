@@ -17,3 +17,15 @@
 	respond @metrics 404
 	reverse_proxy web:8000
 }
+# Optional bundled EspoCRM (docker compose --profile crm). With the default crm.localhost Caddy issues an internal
+# certificate and nothing is exposed publicly; set CRM_HOST to a real name only when the crm profile is running.
+{$CRM_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy espocrm:80
+}

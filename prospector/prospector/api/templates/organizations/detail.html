@@ -9,6 +9,10 @@
       {{ org.city or '' }}{% if org.region %}, {{ org.region }}{% endif %}{% if org.country %} {{ org.country }}{% endif %}
       · track <strong>{{ org.track }}</strong> · status <span class="tag {{ org.status }}">{{ org.status }}</span>
       · #{{ org.id }} · first seen {{ org.created_at|dt }}
+      {% if org.lead_source == 'inbound' %} · <span class="badge inbound">inbound{% if org.inbound_at %} {{ org.inbound_at|dt('%Y-%m-%d') }}{% endif %}</span>{% endif %}
+      {% if org.known_contacts %} · <span class="badge known">you know {{ org.known_contacts|length }} {{ 'person' if org.known_contacts|length == 1 else 'people' }} here</span>{% endif %}
+      {% if org.tracked %} · <span class="badge tracked">tracked{% if org.next_recheck_at %} · next check {{ org.next_recheck_at|dt('%Y-%m-%d') }}{% endif %}</span>{% endif %}
+      {% if crm_link %} · <span class="badge crm">in CRM{% if crm_link.remote_url %} <a href="{{ crm_link.remote_url }}" target="_blank" rel="noopener noreferrer">open ↗</a>{% endif %}</span>{% endif %}
     </p>
   </header>
   <div class="grid actions">
@@ -67,6 +71,10 @@
         </tbody>
       </table>
       {% else %}<p>No PageSpeed data yet{% if site and site.cms != 'wordpress' and org.track != 'agency' %} (fetched automatically for WordPress sites and agencies){% endif %}.</p>{% endif %}
+      {% if field_mobile %}
+      <p><small>CrUX API (28-day real-user, mobile{% if field_mobile.field_origin_fallback %}, origin{% endif %}): LCP p75 {{ field_mobile.field_lcp_p75|ms }} · INP p75 {{ field_mobile.field_inp_p75|ms }}
+        · CLS p75 {{ field_mobile.field_cls_p75 if field_mobile.field_cls_p75 is not none else '—' }} · fetched {{ field_mobile.fetched_at|dt }}</small></p>
+      {% endif %}
     </article>
 
     <article>
@@ -127,6 +135,57 @@
       <small>Place ID {{ org.place_links[0].place_id }} · seen {{ org.place_links[0].last_seen_at|dt }}{% if org.place_links[0].lat %} · coords expire {{ org.place_links[0].coords_expires_at|dt('%Y-%m-%d') }}{% endif %}</small>
       {% else %}<p>No Google place linked.</p>{% endif %}
     </article>
+
+    <article>
+      <header><strong>CRM</strong> <small>({{ crm_target }}{% if not crm_configured %} — not configured{% endif %})</small></header>
+      {% if crm_link %}
+      <p>Linked to <code>{{ crm_link.target }} {{ crm_link.remote_id }}</code>{% if crm_link.remote_url %} · <a href="{{ crm_link.remote_url }}" target="_blank" rel="noopener noreferrer">open in CRM ↗</a>{% endif %}<br>
+        <small>pushed {{ crm_link.last_pushed_at|dt }}{% if crm_link.last_pulled_at %} · status pulled {{ crm_link.last_pulled_at|dt }}{% endif %}{% if crm_link.last_error %} · <span class="error">{{ crm_link.last_error }}</span>{% endif %}</small></p>
+      {% else %}<p>Not in the CRM yet.</p>{% endif %}
+      <form method="post" action="/organizations/{{ org.id }}/crm/push" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="secondary outline" {% if not crm_configured or not crm_ok %}disabled{% endif %}>Push now</button>
+      </form>
+      <form method="post" action="/organizations/{{ org.id }}/tracking" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="tracked" value="{{ '0' if org.tracked else '1' }}">
+        <button class="secondary outline">{{ 'Stop weekly re-check' if org.tracked else 'Track weekly' }}</button>
+      </form>
+      <small>{% if crm_ok %}Pushes the organisation plus contacts whose notice is <code>sent</code>; the notice text travels with the record.{% else %}Not pushable: {{ crm_reason }}.{% endif %}</small>
+    </article>
+
+    <article>
+      <header><strong>Notice</strong> <small>— record every time the privacy notice reaches this organisation</small></header>
+      <p><small>{% if org.notice_sent_at %}First notice {{ org.notice_sent_at|dt }}.{% else %}No notice recorded yet.{% endif %}
+        <a href="/organizations/{{ org.id }}/notice-text" target="_blank">preview notice text</a></small></p>
+      {% if notice_events %}<ul class="compact">{% for e in notice_events %}<li><small>{{ e.sent_at|dt }} · {{ e.channel }}{% if e.person_id %} · contact #{{ e.person_id }}{% endif %}{% if e.notes %} · {{ e.notes }}{% endif %}</small></li>{% endfor %}</ul>{% endif %}
+      <form method="post" action="/organizations/{{ org.id }}/notice">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <fieldset role="group">
+          <select name="channel">{% for c in notice_channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+          <select name="person_id"><option value="0">all contacts</option>{% for p in org.persons %}<option value="{{ p.id }}">{{ p.full_name }}</option>{% endfor %}</select>
+          <input name="notes" placeholder="e.g. first e-mail with notice link">
+          <button class="secondary">Record notice</button>
+        </fieldset>
+      </form>
+    </article>
+
+    {% if org.country == 'GB' or org.registry_ids.get('company_number') or companies_house_available %}
+    <article>
+      <header><strong>Companies House</strong> <small>(UK register, live lookup)</small></header>
+      {% if org.registry_ids.get('company_number') %}
+      <p>Company number <code>{{ org.registry_ids.company_number }}</code> ·
+        <a href="https://find-and-update.company-information.service.gov.uk/company/{{ org.registry_ids.company_number }}" target="_blank" rel="noopener noreferrer">register ↗</a> ·
+        <a href="#" hx-get="/organizations/{{ org.id }}/registry/officers/{{ org.registry_ids.company_number }}" hx-target="#officers" hx-swap="innerHTML">view officers (live, not stored)</a></p>
+      <div id="officers"></div>
+      {% endif %}
+      {% if companies_house_available %}
+      <form hx-get="/organizations/{{ org.id }}/registry/search" hx-target="#registry-results" hx-swap="innerHTML">
+        <fieldset role="group"><input name="q" value="{{ org.legal_name or org.display_name or '' }}" placeholder="company name"><button class="secondary outline">Search</button></fieldset>
+      </form>
+      <div id="registry-results"></div>
+      {% else %}<p><small>Set COMPANIES_HOUSE_API_KEY to search the register from here.</small></p>{% endif %}
+    </article>
+    {% endif %}
 
     <article>
       <header><strong>Contacts</strong> <small>({{ org.persons|length }}) — each needs a lawful basis and notice status</small></header>

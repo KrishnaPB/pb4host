@@ -65,9 +65,14 @@ def test_r1_every_fact_has_evidence(session):
 # R2 — automated connectors never create person data
 def test_r2_automated_connectors_cannot_create_persons(session):
     ensure_connector_states(session)
-    automated = {name for name, cls in REGISTRY.items() if name != "csv_import"}
-    assert automated >= {"google_places", "website_probe", "dns_asn", "pagespeed"}
-    assert all(REGISTRY[n].creates_persons is False for n in automated)
+    # The only routes by which a person may enter: a human import with a lawful basis, the person's
+    # own consent (inbound form / LinkedIn sign-in) or the owner's own relationship data.
+    human = {"csv_import": "import", "inbound_webhook": "consent", "linkedin_oidc": "consent", "linkedin_connections": "owner_export"}
+    automated = {name for name in REGISTRY if name not in human}
+    assert automated >= {"google_places", "website_probe", "dns_asn", "pagespeed", "crux", "github_orgs", "httparchive_feed",
+                         "companies_house", "crm_sync"}
+    assert all(REGISTRY[n].creates_persons is False and REGISTRY[n].person_route is None for n in automated)
+    assert all(REGISTRY[n].creates_persons is True and REGISTRY[n].person_route == route for n, route in human.items())
     with pytest.raises(PersonFactRejected):
         DnsAsnConnector().check_facts([Fact("person.email", "a@b.example", "dns", "dns://x", 1.0)])
     assert "person" not in Fact("organization.email", "x@y.example", "own_website", "https://y.example", 1).entity_type

@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ...models import ActivityLog, ConnectorState, DiscoveryRun, Job, Organization, Person, User
+from ...models import ActivityLog, ConnectorState, CrmLink, DiscoveryRun, InboundSubmission, Job, Organization, Person, RightsRequest, User
+from ...util import utcnow
 from ..deps import current_user, get_db, render
 
 router = APIRouter(tags=["dashboard"])
@@ -36,6 +37,19 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
         .order_by(Organization.score_total.desc(), Organization.id.desc())
         .limit(8)
     ).all()
+    now = utcnow()
+    open_rights = db.scalars(select(RightsRequest).where(RightsRequest.status.in_(("open", "in_progress"))).order_by(RightsRequest.due_at)).all()
+    phase2 = {
+        "inbound_7d": db.scalar(select(func.count(InboundSubmission.id)).where(InboundSubmission.received_at >= now - __import__("datetime").timedelta(days=7))) or 0,
+        "inbound_open": db.scalar(select(func.count(Organization.id)).where(Organization.lead_source == "inbound", Organization.status.in_(("new", "reviewing")))) or 0,
+        "known": db.scalar(select(func.count(Person.id)).where(Person.source == "linkedin_connections", Person.organization_id.is_not(None))) or 0,
+        "tracked": db.scalar(select(func.count(Organization.id)).where(Organization.tracked.is_(True))) or 0,
+        "recheck_due": db.scalar(select(func.count(Organization.id)).where(Organization.tracked.is_(True), Organization.next_recheck_at <= now)) or 0,
+        "crm_linked": db.scalar(select(func.count(CrmLink.id)).where(CrmLink.entity_type == "organization")) or 0,
+        "rights_open": len(open_rights),
+        "rights_overdue": sum(1 for r in open_rights if r.due_at and r.due_at <= now),
+        "rights_next_due": open_rights[0].due_at if open_rights else None,
+    }
     return render(
         request,
         "dashboard.html",
@@ -49,5 +63,6 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
             "persons": persons,
             "last_retention": last_retention,
             "top": top,
+            "phase2": phase2,
         },
     )

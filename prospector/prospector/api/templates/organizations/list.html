@@ -11,7 +11,10 @@
     <select name="error_state"><option value="">any health</option><option value="any" {% if filters.error_state == 'any' %}selected{% endif %}>any error</option>{% for e in ('server_error','db_error','php_error','maintenance','dns_fail','tls_invalid','parked','timeout') %}<option value="{{ e }}" {% if filters.error_state == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
     <select name="host_class"><option value="">any host</option>{% for h in ('shared','managed_wp','cloud','cdn_proxied','unknown') %}<option value="{{ h }}" {% if filters.host_class == h %}selected{% endif %}>{{ h }}</option>{% endfor %}</select>
     <input type="number" name="min_score" value="{{ filters.min_score }}" placeholder="min score" min="0" style="max-width:8rem">
-    <select name="sort"><option value="score" {% if filters.sort == 'score' %}selected{% endif %}>by score</option><option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>newest</option><option value="name" {% if filters.sort == 'name' %}selected{% endif %}>by name</option></select>
+    <select name="lead_source"><option value="">any source</option>{% for l in ('inbound','discovery','import','manual') %}<option value="{{ l }}" {% if filters.lead_source == l %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <select name="known"><option value="">anyone</option><option value="yes" {% if filters.known == 'yes' %}selected{% endif %}>people I know</option></select>
+    <select name="tracked"><option value="">tracked or not</option><option value="yes" {% if filters.tracked == 'yes' %}selected{% endif %}>tracked only</option></select>
+    <select name="sort"><option value="score" {% if filters.sort == 'score' %}selected{% endif %}>by score</option><option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>newest</option><option value="inbound" {% if filters.sort == 'inbound' %}selected{% endif %}>latest inbound</option><option value="name" {% if filters.sort == 'name' %}selected{% endif %}>by name</option></select>
     <button type="submit">Filter</button>
   </form>
   <table>
@@ -19,7 +22,7 @@
     <tbody>
     {% for o in orgs %}{% set s = o.primary_website %}
     <tr>
-      <td><a href="/organizations/{{ o.id }}">{{ o.label }}</a><br><small>{{ o.domain or '' }}</small></td>
+      <td><a href="/organizations/{{ o.id }}">{{ o.label }}</a>{% if o.lead_source == 'inbound' %} <span class="badge inbound">inbound</span>{% endif %}{% if o.known_contacts %} <span class="badge known">known</span>{% endif %}{% if o.tracked %} <span class="badge tracked">tracked</span>{% endif %}<br><small>{{ o.domain or '' }}</small></td>
       <td><small>{{ o.city or '' }}{% if o.country %} {{ o.country }}{% endif %}</small></td>
       <td>{{ o.track }}</td>
       <td><span class="tag {{ o.status }}">{{ o.status }}</span></td>

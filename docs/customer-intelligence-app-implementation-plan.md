@@ -1,5 +1,5 @@
 # PB4HOST customer intelligence app ("Prospector") — implementation plan
-**Prepared 14 October 2026. Status: plan for approval. No code, cloud accounts, API keys or data collection exist yet.**
+**Prepared 14 October 2026. Status: Phase 1 MVP and Phase 2 implemented in [`prospector/`](../prospector/) (see its README and runbook); counsel gates, cloud accounts, API keys and the pb4host.com privacy-notice publication remain owner actions. Decisions taken during Phase 2: CRM target = self-hosted EspoCRM; UK in scope → Companies House connector included.**
 
 ## 1. Summary
 PB4HOST wants an application that collects customer details from publicly available platforms such as LinkedIn and Google Business Profile. This plan proposes **Prospector**: an organisation-first lead discovery and enrichment service that
@@ -296,10 +296,10 @@ Assumes one full-stack developer at full time, the owner for decisions and revie
 - **Weeks 3–5 MVP:** data model and migrations; API; workers and scheduler; connectors `google_places`, `website_probe`, `dns_asn`, `pagespeed`, `csv_import`, `manual_capture`; dedupe v1; scoring v1; UI (discovery run, review queue with filters, organisation detail with evidence and live Places attribution panel, suppression, CSV export, imports); audit log; retention jobs; docker-compose deployment with TLS; runbook.
 - **Acceptance:** a "web design agency in Bengaluru" run yields ≥ 50 enriched organisations with evidence links inside the daily caps; the golden-set precision targets in §2 are met; R1–R6, R8–R11 tests pass; a restore from backup works on a clean VM.
 
-### Phase 2 — Inbound, consent and more sources (Weeks 6–8)
+### Phase 2 — Inbound, consent and more sources (Weeks 6–8) — *implemented; see `prospector/docs/runbook.md` §3–3d*
 - Website form webhook with consent capture; Sign In with LinkedIn on the evaluation and agency forms; LinkedIn connections import; CrUX API; monthly CrUX + HTTP Archive discovery feed; GitHub agency discovery; Companies House (if the UK is in scope); CRM sync; rights-request workflow and notice tracking; scheduled re-checks (weekly, light) for tracked organisations and customers.
-- Update the pb4host.com privacy notice and publish the crawler page.
-- **Gate (counsel, second review):** notice templates and export format approved before the first outreach batch leaves the CRM.
+- Update the pb4host.com privacy notice and publish the crawler page (drafts: `prospector/docs/crawler-policy.md`, which now includes the privacy notice for enquiries, LinkedIn sign-in and the founder's connections).
+- **Gate (counsel, second review):** notice templates and export format approved before the first outreach batch leaves the CRM. *Still open — owner action.*
 - **Acceptance:** an inbound test submission is enriched and visible in the CRM within 10 minutes; an erasure request removes the person and anonymises the organisation history within one workflow; R7 tests pass.
 
 ### Phase 3 — Learn and harden (Weeks 9–10)

@@ -23,7 +23,6 @@
         <select name="kind">
           <option value="generic">Generic (company, website, email, phone, city, country, first_name, last_name, role, person_email, linkedin_url)</option>
           <option value="woocommerce_customers">WooCommerce customers export</option>
-          <option value="linkedin_connections">My LinkedIn Connections.csv (owner's own export)</option>
         </select></label>
       <label>Track <select name="track"><option value="unknown">unknown</option><option value="smb">SMB</option><option value="agency">Agency</option></select></label>
       <label>Lawful basis for any named contacts
@@ -34,8 +33,21 @@
       <label>Notice status <select name="notice_status"><option value="pending">pending</option><option value="sent">sent</option><option value="not_required">not_required</option></select></label>
       <label>Column mapping override (JSON, optional) <input name="mapping_json" placeholder='{"company": "Business Name"}'></label>
       <button type="submit">Import</button>
-      <small>Rows with people are imported as contacts only when a lawful basis is declared (existing customers → <code>contract</code>; your own LinkedIn connections → <code>legitimate_interest</code> with an LIA on file). Websites found in the file are queued for enrichment.</small>
+      <small>Rows with people are imported as contacts only when a lawful basis is declared (existing customers → <code>contract</code>). Websites found in the file are queued for enrichment.</small>
     </form>
   </article>
 </div>
+{% if user.role == 'owner' %}
+<article>
+  <header><strong>LinkedIn connections</strong> <small>— owner seat only; your own data export, never a scrape</small></header>
+  <form method="post" action="/imports/linkedin" enctype="multipart/form-data" class="grid">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Connections.csv from <em>Settings → Data privacy → Get a copy of your data</em> <input type="file" name="file" accept=".csv,text/csv" required></label>
+    <button type="submit" class="secondary">Import connections</button>
+  </form>
+  <small>Creates people with lawful basis <code>legitimate_interest</code> ({{ settings.linkedin_connections_lia_reference }}), notice <code>pending</code>,
+    linked to organisations whose name matches; the rest wait on the <a href="/people">People</a> page and link automatically when a matching organisation appears.
+    Re-importing updates rows instead of duplicating them.</small>
+</article>
+{% endif %}
 {% endblock %}

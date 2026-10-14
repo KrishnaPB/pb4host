@@ -78,6 +78,67 @@ class Settings(BaseSettings):
     scoring_rules_path: Path | None = None
     worker_poll_interval_s: float = 2.0
 
+    # --- Phase 2 -------------------------------------------------------------------------------
+    # Inbound forms (R2 consent capture). The webhook secret signs payloads sent by pb4host.com.
+    inbound_webhook_secret: str | None = None
+    inbound_replay_window_s: int = 300
+    inbound_consent_version: str = "2026-10-v1"
+    privacy_notice_url: str = "https://www.pb4host.com/privacy"
+    inbound_rate_limit_per_hour: int = 20  # hosted form submissions per client IP
+    inbound_daily_cap: int = 2000
+
+    # Sign In with LinkedIn (OpenID Connect) — only identity, never profile scraping
+    linkedin_client_id: str | None = None
+    linkedin_client_secret: str | None = None
+    linkedin_daily_cap: int = 500
+
+    # Owner's own LinkedIn connections export
+    linkedin_connections_lia_reference: str = "LIA-2026-01 owner's own LinkedIn connections, 1:1 contact only"
+
+    # Chrome UX Report API (field data per origin)
+    crux_api_key: str | None = None  # falls back to psi_api_key
+    crux_daily_cap: int = 1000
+
+    # HTTP Archive + CrUX monthly discovery feed (BigQuery)
+    bigquery_project: str | None = None
+    bigquery_credentials_file: Path | None = None
+    httparchive_max_bytes: int = 100 * 1024**3  # fail closed above this dry-run estimate
+    httparchive_default_country: str = "in"
+    httparchive_default_limit: int = 500
+    httparchive_daily_cap: int = 2
+
+    # GitHub organisation discovery (agency track)
+    github_token: str | None = None
+    github_daily_cap: int = 300
+    github_pages_per_run: int = 3
+
+    # Companies House (UK registry)
+    companies_house_api_key: str | None = None
+    companies_house_daily_cap: int = 500
+
+    # CRM sync
+    crm_target: str = "espocrm"
+    espocrm_base_url: str | None = None
+    espocrm_api_key: str | None = None
+    crm_status_field: str = "type"  # Account field whose value is mapped back to a Prospector status
+    crm_status_map: str = '{"Customer": "customer", "Partner": "customer", "Prospect": "contacted", "Dead": "disqualified"}'
+    crm_push_persons: bool = True
+    crm_daily_cap: int = 2000
+
+    # Rights requests and scheduled re-checks
+    rights_due_days: int = 30
+    recheck_interval_days: int = 7
+    recheck_daily_limit: int = 200
+    recheck_psi_after_days: int = 28
+
+    @property
+    def linkedin_enabled(self) -> bool:
+        return bool(self.linkedin_client_id and self.linkedin_client_secret)
+
+    @property
+    def crm_configured(self) -> bool:
+        return bool(self.espocrm_base_url and self.espocrm_api_key)
+
     @property
     def salt(self) -> str:
         return self.suppression_salt or self.secret_key

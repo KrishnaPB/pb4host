@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ...compliance import audit
 from ...connectors.csv_import import FIELDS, PRESETS, CsvImportConnector, read_csv
+from ...connectors.linkedin_connections import LinkedInConnectionsConnector, parse_connections_csv
 from ...jobs.tasks import enqueue_enrichment
 from ...models import LAWFUL_BASES, ImportBatch, User
 from ..deps import csrf_protect, current_user, flash, get_db, redirect, render, require_role
@@ -67,6 +68,32 @@ async def upload(
                    f"{summary.organizations_matched} matched, {summary.persons_created} contacts. "
                    f"{len(to_probe)} websites queued for enrichment.", "success")
     return redirect(f"/imports/{batch.id}")
+
+
+@router.post("/linkedin", dependencies=[Depends(csrf_protect)])
+async def upload_linkedin_connections(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("owner")),
+):
+    """Owner seat only: the owner's own LinkedIn Connections.csv (plan §4.1 route 2)."""
+    content = await file.read()
+    if len(content) > 10_000_000:
+        raise HTTPException(413, "file too large")
+    try:
+        rows = parse_connections_csv(content)
+    except ValueError as exc:
+        flash(request, str(exc), "error")
+        return redirect("/imports")
+    batch = ImportBatch(kind="linkedin_connections", filename=file.filename or "Connections.csv", track="unknown",
+                        column_mapping={}, lawful_basis="legitimate_interest", imported_by=user.id)
+    db.add(batch)
+    db.flush()
+    summary = LinkedInConnectionsConnector().import_rows(db, batch, rows, actor=user)
+    flash(request, f"Connections import: {summary.rows} rows, {summary.created} new, {summary.updated} updated, "
+                   f"{summary.linked} linked to organisations, {summary.unlinked} waiting for a match.", "success")
+    return redirect("/people")
 
 
 @router.get("/{batch_id}")

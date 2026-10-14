@@ -1,5 +1,7 @@
 # PB4HOST Prospector — single-VPS deployment (API + worker + PostgreSQL + Caddy).
 # Usage:  cp ../.env.example ../.env  (edit it)  →  docker compose up -d --build
+# Optional self-hosted CRM (Phase 2):  docker compose --profile crm up -d   (then set ESPOCRM_BASE_URL=http://espocrm
+# and an API key from EspoCRM → Administration → API Users in .env, and restart web + worker).
 services:
   db:
     image: postgres:16-alpine
@@ -71,6 +73,7 @@ services:
       - "443:443"
     environment:
       PROSPECTOR_HOST: ${PROSPECTOR_HOST:-prospector.localhost}
+      CRM_HOST: ${CRM_HOST:-crm.localhost}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -94,9 +97,59 @@ services:
       db:
         condition: service_healthy
 
+  # --- optional: EspoCRM (profile "crm") ---------------------------------------------------------
+  espocrm-db:
+    image: mariadb:11
+    profiles: ["crm"]
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${ESPOCRM_DB_PASSWORD:?set ESPOCRM_DB_PASSWORD in .env}
+      MARIADB_DATABASE: espocrm
+      MARIADB_USER: espocrm
+      MARIADB_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+    volumes:
+      - espocrm_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  espocrm:
+    image: espocrm/espocrm:latest
+    profiles: ["crm"]
+    restart: unless-stopped
+    environment:
+      ESPOCRM_DATABASE_PLATFORM: Mysql
+      ESPOCRM_DATABASE_HOST: espocrm-db
+      ESPOCRM_DATABASE_USER: espocrm
+      ESPOCRM_DATABASE_PASSWORD: ${ESPOCRM_DB_PASSWORD}
+      ESPOCRM_ADMIN_USERNAME: admin
+      ESPOCRM_ADMIN_PASSWORD: ${ESPOCRM_ADMIN_PASSWORD:?set ESPOCRM_ADMIN_PASSWORD in .env}
+      ESPOCRM_SITE_URL: https://${CRM_HOST:-crm.localhost}
+    volumes:
+      - espocrm_data:/var/www/html
+    depends_on:
+      espocrm-db:
+        condition: service_healthy
+    expose:
+      - "80"
+
+  espocrm-daemon:
+    image: espocrm/espocrm:latest
+    profiles: ["crm"]
+    restart: unless-stopped
+    volumes:
+      - espocrm_data:/var/www/html
+    entrypoint: docker-daemon.sh
+    depends_on:
+      - espocrm
+
 volumes:
   pgdata:
   appdata:
   caddy_data:
   caddy_config:
   backups:
+  espocrm_db:
+  espocrm_data:

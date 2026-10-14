@@ -185,5 +185,7 @@ def erase_person(session: Session, person: Person, *, reason: str, actor: User |
         add_suppression(session, "phone", person.phone_e164, reason=reason, actor=actor)
     audit.log(session, "person.erase", actor=actor, entity_type="person", entity_id=person.id,
               organization_id=person.organization_id, reason=reason)
+    if person.organization is not None and person in person.organization.persons:
+        person.organization.persons.remove(person)  # keep the parent collection consistent for callers that continue
     session.delete(person)
     session.flush()

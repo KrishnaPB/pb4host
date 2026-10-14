@@ -62,7 +62,8 @@ class CsvImportConnector(Connector):
     requires_terms_review = False
     default_daily_cap = 100_000
     cost_per_call_usd = 0.0
-    creates_persons = True  # the only connector allowed to, and only with a declared lawful basis
+    creates_persons = True
+    person_route = "import"  # the only connector allowed to, and only with a declared lawful basis
 
     def import_rows(
         self,
@@ -105,6 +106,7 @@ class CsvImportConnector(Connector):
                       country=(get("country") or country),
                       phones=[phone] if phone else None,
                       track=batch.track,
+                      lead_source="import",
                   )
                   org = resolved.organization
                   if resolved.created:

@@ -1,0 +1,10 @@
+{% extends "public/base.html" %}
+{% block title %}Thank you · {{ business_name }}{% endblock %}
+{% block content %}
+<article>
+  <header><h2>Thank you</h2></header>
+  <p>We have your request{% if verified %} (identity confirmed via LinkedIn){% endif %}. A person — not a bot — will look at your site
+    and reply by e-mail, normally within two working days.</p>
+  <p><small>You can withdraw your consent or ask what we hold at any time by replying to our message or using the contact in the privacy notice.</small></p>
+</article>
+{% endblock %}

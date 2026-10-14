@@ -1,0 +1,67 @@
+{% extends "public/base.html" %}
+{% block title %}{{ form.title }} · {{ business_name }}{% endblock %}
+{% block content %}
+<article>
+  <header>
+    <h2>{{ form.title }}</h2>
+    <p>{{ form.intro }}</p>
+  </header>
+  {% for e in errors %}<article class="flash flash-error">{{ e }}</article>{% endfor %}
+
+  {% if identity %}
+  <p class="verified">Signed in with LinkedIn as <strong>{{ identity.name or identity.email }}</strong>
+    {% if identity.email_verified %}<small>(e-mail verified)</small>{% endif %}.
+    We will keep only your name, e-mail and the identifier LinkedIn gave us — nothing else from your profile.</p>
+  {% elif linkedin_available %}
+  <p><a role="button" class="secondary outline" href="/forms/{{ form.key }}/linkedin/start">Sign in with LinkedIn to pre-fill</a>
+    <small> — optional; it only confirms your name and e-mail.</small></p>
+  {% endif %}
+
+  <form method="post" action="/forms/{{ form.key }}" autocomplete="on">
+    <input type="hidden" name="form_token" value="{{ form_token }}">
+    <input type="text" name="website_confirm" value="" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+    <div class="grid">
+      <label>Your name
+        <input name="name" required maxlength="200" value="{{ identity.name if identity else values.get('name','') }}" {% if identity and identity.name %}readonly{% endif %}>
+      </label>
+      <label>Work e-mail
+        <input name="email" type="email" required maxlength="255" value="{{ identity.email if identity and identity.email else values.get('email','') }}" {% if identity and identity.email %}readonly{% endif %}>
+      </label>
+    </div>
+    <div class="grid">
+      <label>Company / organisation
+        <input name="company" maxlength="200" value="{{ values.get('company','') }}" placeholder="Acme Bakery">
+      </label>
+      <label>Website
+        <input name="website" type="text" inputmode="url" maxlength="500" value="{{ values.get('website','') }}" placeholder="https://www.example.in">
+      </label>
+    </div>
+    <div class="grid">
+      <label>Phone (optional)
+        <input name="phone" maxlength="40" value="{{ values.get('phone','') }}" placeholder="+91 …">
+      </label>
+      <label>City (optional)
+        <input name="city" maxlength="120" value="{{ values.get('city','') }}">
+      </label>
+    </div>
+    {% for f in form.extra_fields %}
+      {% if f.kind == 'select' %}
+      <label>{{ f.label }}
+        <select name="{{ f.name }}">{% for o in f.options %}<option value="{{ o }}" {% if values.get(f.name) == o %}selected{% endif %}>{{ o }}</option>{% endfor %}</select>
+      </label>
+      {% else %}
+      <label>{{ f.label }}<input name="{{ f.name }}" maxlength="500" value="{{ values.get(f.name,'') }}"></label>
+      {% endif %}
+    {% endfor %}
+    <label>Anything else we should know? (optional)
+      <textarea name="message" rows="3" maxlength="2000">{{ values.get('message','') }}</textarea>
+    </label>
+    <label class="consent">
+      <input type="checkbox" name="consent" value="yes" required {% if values.get('consent') %}checked{% endif %}>
+      {{ form.consent_text }} Details: <a href="{{ privacy_url }}" target="_blank" rel="noopener">privacy notice</a> (version {{ consent_version }}).
+    </label>
+    <input type="hidden" name="consent_version" value="{{ consent_version }}">
+    <button type="submit">Send request</button>
+  </form>
+</article>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}People you know{% endblock %}
+{% block content %}
+<h2>People you already know <small>({{ counts.linked }} of {{ counts.total }} linked to an organisation)</small></h2>
+<p><small>From the owner's own LinkedIn connections export. Personal, one-to-one contact only — these rows are excluded from bulk exports and
+  only reach the CRM once a notice has been recorded. Lawful basis: legitimate interest ({{ settings.linkedin_connections_lia_reference }}).</small></p>
+<form method="get" action="/people" class="grid">
+  <input name="q" value="{{ q }}" placeholder="name or role">
+  <select name="linked"><option value="">all</option><option value="yes" {% if linked == 'yes' %}selected{% endif %}>linked</option><option value="no" {% if linked == 'no' %}selected{% endif %}>unlinked</option></select>
+  <button type="submit" class="secondary">Filter</button>
+</form>
+{% if warm %}
+<article>
+  <header><strong>At warm or hot organisations</strong> — start here</header>
+  <ul>{% for p in warm %}<li><strong>{{ p.full_name }}</strong>{% if p.role_title %}, {{ p.role_title }}{% endif %} at
+    <a href="/organizations/{{ p.organization.id }}">{{ p.organization.label }}</a> <span class="band {{ band_class(p.organization.score_band) }}">{{ p.organization.score_total }}</span></li>{% endfor %}</ul>
+</article>
+{% endif %}
+<table role="grid">
+  <thead><tr><th>name</th><th>role</th><th>company (as exported)</th><th>organisation</th><th>connected</th><th>notice</th>{% if user.role == 'owner' %}<th>link</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for p in rows %}
+  <tr>
+    <td>{{ p.full_name }}{% if p.linkedin_url %} <a href="{{ p.linkedin_url }}" target="_blank" rel="noopener noreferrer nofollow">↗</a>{% endif %}</td>
+    <td>{{ p.role_title or '' }}</td>
+    <td>{{ p.meta.get('company') or '' }}</td>
+    <td>{% if p.organization %}<a href="/organizations/{{ p.organization.id }}">{{ p.organization.label }}</a>{% else %}<em>unlinked</em>{% endif %}</td>
+    <td>{{ p.meta.get('connected_on') or '' }}</td>
+    <td><code>{{ p.notice_status }}</code></td>
+    {% if user.role == 'owner' %}
+    <td><form method="post" action="/people/{{ p.id }}/link" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <fieldset role="group"><input type="number" name="organization_id" placeholder="org #" style="width:7rem" required><button class="secondary outline small">Link</button></fieldset></form></td>
+    {% endif %}
+  </tr>
+  {% else %}<tr><td colspan="7">No connections imported yet — owner: Imports → LinkedIn connections.</td></tr>{% endfor %}
+  </tbody>
+</table>
+{% endblock %}

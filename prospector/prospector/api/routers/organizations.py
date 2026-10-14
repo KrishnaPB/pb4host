@@ -1,20 +1,22 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ...compliance import audit
 from ...compliance.suppression import suppress_organization
+from ...config import get_settings
 from ...connectors.base import ConnectorError
 from ...core.dedupe import merge_organizations
 from ...core.facts import Fact, apply_facts, evidence_coverage
 from ...core.normalize import normalize_email, normalize_phone
 from ...core.scoring import score_organization
-from ...jobs.tasks import connector, enqueue_enrichment
-from ...models import LAWFUL_BASES, NOTICE_STATUSES, ORG_STATUSES, Organization, Person, User
+from ...jobs.tasks import connector, enqueue_crm_sync, enqueue_enrichment
+from ...models import LAWFUL_BASES, NOTICE_CHANNELS, NOTICE_STATUSES, ORG_STATUSES, Organization, Person, User
 from ...util import utcnow
 from ..deps import csrf_protect, current_user, flash, get_db, redirect, render, require_role
 
@@ -34,6 +36,9 @@ def org_query(
     cms: str | None = None,
     error_state: str | None = None,
     host_class: str | None = None,
+    lead_source: str | None = None,
+    known: str | None = None,
+    tracked: str | None = None,
     sort: str = "score",
     limit: int = 100,
     offset: int = 0,
@@ -63,7 +68,15 @@ def org_query(
             stmt = stmt.where(Website.error_state == error_state) if error_state != "any" else stmt.where(Website.error_state != "none")
         if host_class:
             stmt = stmt.where(Website.host_class == host_class)
-    if sort == "newest":
+    if lead_source:
+        stmt = stmt.where(Organization.lead_source == lead_source)
+    if known == "yes":
+        stmt = stmt.where(exists().where(Person.organization_id == Organization.id, Person.source == "linkedin_connections"))
+    if tracked == "yes":
+        stmt = stmt.where(Organization.tracked.is_(True))
+    if sort == "inbound":
+        stmt = stmt.order_by(Organization.inbound_at.desc().nulls_last(), Organization.id.desc())
+    elif sort == "newest":
         stmt = stmt.order_by(Organization.id.desc())
     elif sort == "name":
         stmt = stmt.order_by(Organization.display_name.asc().nulls_last(), Organization.domain.asc())
@@ -83,6 +96,9 @@ def list_organizations(
     cms: str | None = None,
     error_state: str | None = None,
     host_class: str | None = None,
+    lead_source: str | None = None,
+    known: str | None = None,
+    tracked: str | None = None,
     sort: str = "score",
     page: int = Query(1, ge=1),
     db: Session = Depends(get_db),
@@ -91,12 +107,13 @@ def list_organizations(
     request.state.user = user
     per_page = 50
     stmt = org_query(db, q=q, track=track, status=status, band=band, min_score=min_score, cms=cms,
-                     error_state=error_state, host_class=host_class, sort=sort, limit=per_page + 1, offset=(page - 1) * per_page)
+                     error_state=error_state, host_class=host_class, lead_source=lead_source, known=known, tracked=tracked,
+                     sort=sort, limit=per_page + 1, offset=(page - 1) * per_page)
     rows = db.scalars(stmt).unique().all()
     has_next = len(rows) > per_page
     filters = {"q": q or "", "track": track or "", "status": status or "", "band": band or "",
                "min_score": min_score or "", "cms": cms or "", "error_state": error_state or "",
-               "host_class": host_class or "", "sort": sort}
+               "host_class": host_class or "", "lead_source": lead_source or "", "known": known or "", "tracked": tracked or "", "sort": sort}
     return render(
         request,
         "organizations/list.html",
@@ -127,6 +144,11 @@ def organization_detail(org_id: int, request: Request, db: Session = Depends(get
     site = org.primary_website
     evidence = sorted(org.evidence, key=lambda e: (e.field, -e.id))
     coverage_gaps = evidence_coverage(db, org)
+    settings = get_settings()
+    crm_link = next((link for link in org.crm_links if link.entity_type == "organization"), None)
+    from ...crm.sync import eligibility
+
+    crm_ok, crm_reason = eligibility(db, org)
     return render(
         request,
         "organizations/detail.html",
@@ -135,12 +157,21 @@ def organization_detail(org_id: int, request: Request, db: Session = Depends(get
             "site": site,
             "perf_mobile": site.latest_performance("mobile") if site else None,
             "perf_desktop": site.latest_performance("desktop") if site else None,
+            "field_mobile": site.latest_field_performance("mobile") if site else None,
             "evidence": evidence,
             "coverage_gaps": coverage_gaps,
             "manual_statuses": MANUAL_STATUSES,
             "lawful_bases": LAWFUL_BASES,
             "notice_statuses": NOTICE_STATUSES,
+            "notice_channels": NOTICE_CHANNELS,
             "merged_from": db.scalars(select(Organization).where(Organization.merged_into_id == org.id)).all(),
+            "crm_link": crm_link,
+            "crm_configured": settings.crm_configured,
+            "crm_target": settings.crm_target,
+            "crm_ok": crm_ok,
+            "crm_reason": crm_reason,
+            "companies_house_available": bool(settings.companies_house_api_key),
+            "notice_events": sorted(org.notice_events, key=lambda e: e.sent_at, reverse=True)[:10],
         },
     )
 
@@ -168,10 +199,17 @@ def set_status(org_id: int, request: Request, status: str = Form(...), note: str
         raise HTTPException(400, "invalid status")
     before = org.status
     org.status = status
+    settings = get_settings()
     if status in {"reviewing", "qualified", "contacted", "customer", "exported"}:
         org.last_engaged_at = utcnow()
+    if status in {"qualified", "exported", "contacted", "customer"} and not org.tracked:
+        org.tracked = True  # weekly light re-check from now on
+        org.next_recheck_at = utcnow() + timedelta(days=settings.recheck_interval_days)
+    if status in {"qualified", "contacted", "customer"} and settings.crm_configured and before != status:
+        enqueue_crm_sync(db, org.id, reason=f"status:{status}")
     if status == "disqualified":
         org.disqualify_reason = note.strip() or "manual"
+        org.tracked = False
     if note.strip():
         stamp = utcnow().strftime("%Y-%m-%d %H:%M")
         org.notes = f"{org.notes or ''}\n[{stamp} {user.email}] {note.strip()}".strip()
@@ -317,3 +355,92 @@ def person_delete(person_id: int, request: Request, db: Session = Depends(get_db
     db.delete(person)
     flash(request, "Contact deleted.", "info")
     return redirect(f"/organizations/{org_id}")
+
+
+# --- Phase 2: tracking, CRM, Companies House -------------------------------------------------------
+@router.post("/organizations/{org_id}/tracking", dependencies=[Depends(csrf_protect)])
+def set_tracking(org_id: int, request: Request, tracked: str = Form("0"), db: Session = Depends(get_db),
+                 user: User = Depends(require_role("analyst"))):
+    org = _load(db, org_id)
+    org.tracked = tracked in {"1", "true", "on", "yes"}
+    org.next_recheck_at = utcnow() + timedelta(days=get_settings().recheck_interval_days) if org.tracked else None
+    audit.log(db, "organization.tracking", actor=user, entity_type="organization", entity_id=org.id, tracked=org.tracked)
+    flash(request, "Weekly re-check " + ("enabled." if org.tracked else "disabled."), "success")
+    return redirect(f"/organizations/{org.id}")
+
+
+@router.post("/organizations/{org_id}/crm/push", dependencies=[Depends(csrf_protect)])
+def crm_push(org_id: int, request: Request, db: Session = Depends(get_db), user: User = Depends(require_role("analyst"))):
+    org = _load(db, org_id)
+    settings = get_settings()
+    if not settings.crm_configured:
+        flash(request, "CRM is not configured (ESPOCRM_BASE_URL / ESPOCRM_API_KEY).", "error")
+        return redirect(f"/organizations/{org.id}")
+    from ...crm.sync import eligibility
+
+    ok, reason = eligibility(db, org)
+    if not ok:
+        flash(request, f"Not pushed: {reason}.", "error")
+        return redirect(f"/organizations/{org.id}")
+    enqueue_crm_sync(db, org.id, reason="manual", force=True)
+    audit.log(db, "crm.push_requested", actor=user, entity_type="organization", entity_id=org.id)
+    flash(request, "Queued for the CRM; the worker pushes it within a few seconds.", "success")
+    return redirect(f"/organizations/{org.id}")
+
+
+@router.get("/organizations/{org_id}/registry/search")
+def registry_search(org_id: int, request: Request, q: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """htmx partial: Companies House search; nothing stored until the analyst applies a result."""
+    org = _load(db, org_id)
+    query = (q or org.legal_name or org.display_name or "").strip()
+    hits, error = [], None
+    if query:
+        try:
+            hits = connector("companies_house").search(db, query)
+        except ConnectorError as exc:
+            error = str(exc)
+    audit.log(db, "registry.search", actor=user, entity_type="organization", entity_id=org.id, query=query, hits=len(hits))
+    return render(request, "partials/registry_results.html", {"org": org, "hits": hits, "query": query, "error": error})
+
+
+@router.post("/organizations/{org_id}/registry/apply", dependencies=[Depends(csrf_protect)])
+def registry_apply(org_id: int, request: Request, company_number: str = Form(...), db: Session = Depends(get_db),
+                   user: User = Depends(require_role("analyst"))):
+    org = _load(db, org_id)
+    profile = connector("companies_house").profile(db, company_number)
+    if profile is None:
+        flash(request, "No company with that number.", "error")
+        return redirect(f"/organizations/{org.id}")
+    ref = profile.url
+    facts = [
+        Fact("organization.legal_name", profile.name, "companies_house", ref, 1.0),
+        Fact("organization.registry.company_number", profile.company_number, "companies_house", ref, 1.0),
+        Fact("organization.country", "GB", "companies_house", ref, 0.9),
+    ]
+    if profile.address:
+        facts.append(Fact("organization.address_text", profile.address, "companies_house", ref, 0.9))
+    if profile.postal_code:
+        facts.append(Fact("organization.postal_code", profile.postal_code, "companies_house", ref, 0.9))
+    if profile.locality and not org.city:
+        facts.append(Fact("organization.city", profile.locality, "companies_house", ref, 0.8))
+    apply_facts(db, org, facts)
+    stamp = utcnow().strftime("%Y-%m-%d")
+    org.notes = f"{org.notes or ''}\n[{stamp} {user.email}] Companies House {profile.company_number}: {profile.status or '?'}, " \
+                f"incorporated {profile.created or '?'}, SIC {', '.join(profile.sic_codes) or '—'}".strip()
+    audit.log(db, "registry.apply", actor=user, entity_type="organization", entity_id=org.id, company_number=profile.company_number)
+    flash(request, f"Applied Companies House facts for {profile.name} ({profile.company_number}).", "success")
+    return redirect(f"/organizations/{org.id}")
+
+
+@router.get("/organizations/{org_id}/registry/officers/{company_number}")
+def registry_officers(org_id: int, company_number: str, request: Request, db: Session = Depends(get_db),
+                      user: User = Depends(require_role("analyst"))):
+    """Live officers view (R2: displayed, audited, never stored)."""
+    org = _load(db, org_id)
+    try:
+        officers = connector("companies_house").officers_live(db, company_number)
+        error = None
+    except ConnectorError as exc:
+        officers, error = [], str(exc)
+    audit.log(db, "registry.officers_view", actor=user, entity_type="organization", entity_id=org.id, company_number=company_number)
+    return render(request, "partials/registry_officers.html", {"org": org, "officers": officers, "error": error, "company_number": company_number})
