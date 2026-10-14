@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Connectors{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Connectors</strong> <small>kill switch, daily caps and 90-day terms review</small></header>
+  <table>
+    <thead><tr><th>Connector</th><th>State</th><th>Today</th><th>Cap</th><th>Terms</th><th>Last error</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for c in rows %}{% set cls = registry.get(c.name) %}
+    <tr>
+      <td><strong>{{ c.name }}</strong><br><small>{% if cls %}{{ 'creates persons' if cls.creates_persons else 'organisation data only' }} · ${{ cls.cost_per_call_usd }}/call{% endif %}</small></td>
+      <td>{% if not c.enabled %}<span class="tag off">disabled</span>{% elif c.requires_terms_review and (not c.terms_reviewed_at or (now - c.terms_reviewed_at).days > settings.terms_review_max_age_days) %}<span class="tag warn">terms review due</span>{% else %}<span class="tag ok">enabled</span>{% endif %}</td>
+      <td class="num">{{ c.calls_today if c.calls_date == now.date() else 0 }}</td>
+      <td class="num">{{ c.daily_cap }}</td>
+      <td><small>{% if c.terms_url %}<a href="{{ c.terms_url }}" target="_blank" rel="noopener noreferrer">terms</a> · {% endif %}{% if c.requires_terms_review %}reviewed {{ c.terms_reviewed_at|dt('%Y-%m-%d') }}{% if c.terms_reviewed_by %} by {{ c.terms_reviewed_by }}{% endif %}{% else %}no review required{% endif %}</small></td>
+      <td><small>{{ (c.last_error or '')[:160] }}</small></td>
+      <td class="button-row">
+        {% if user.role == 'owner' %}
+        <form method="post" action="/admin/connectors/{{ c.name }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="{{ 'disable' if c.enabled else 'enable' }}"><button class="secondary outline small">{{ 'Disable' if c.enabled else 'Enable' }}</button></form>
+        {% if c.requires_terms_review %}<form method="post" action="/admin/connectors/{{ c.name }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="review"><button class="secondary outline small">Mark terms reviewed</button></form>{% endif %}
+        <form method="post" action="/admin/connectors/{{ c.name }}" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="cap"><fieldset role="group"><input type="number" name="daily_cap" value="{{ c.daily_cap }}" min="1" style="max-width:7rem"><button class="secondary outline small">Set cap</button></fieldset></form>
+        {% else %}<small>owner only</small>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p><small>Google Places needs <code>GOOGLE_MAPS_API_KEY</code>; PageSpeed works without a key at a low quota (<code>PSI_API_KEY</code> raises it). Connectors that require terms review stay off until an owner confirms the provider terms were read.</small></p>
+</article>
+{% endblock %}

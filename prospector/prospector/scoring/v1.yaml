@@ -1,0 +1,116 @@
+# Prospector scoring rules v1 — organisation/website level only (never person level).
+# Conditions use a restricted expression language: comparisons, and/or/not, `in [..]`,
+# `is none` / `is not none`, attribute access on: website.*, perf.mobile.*, perf.desktop.*,
+# org.*, and the `signals` list. Edit, then redeploy; the checksum becomes the scoring version.
+version: 1
+thresholds:
+  hot: 70
+  warm: 40
+
+disqualify:
+  - id: not_wordpress
+    when: website.cms is not none and website.cms != "wordpress"
+    reason: "Not WordPress — outside WordPress repair/speed offers"
+    tracks: [smb]
+
+tracks:
+  smb:
+    rules:
+      - id: wp_detected
+        label: "Runs WordPress"
+        when: website.cms == "wordpress"
+        points: 30
+      - id: woocommerce
+        label: "WooCommerce store"
+        when: website.is_woocommerce == true
+        points: 10
+      - id: broken_confirmed
+        label: "Confirmed error state (re-checked)"
+        when: website.error_state != "none" and website.error_confirmed == true
+        points: 25
+      - id: slow_mobile_severe
+        label: "Lighthouse mobile performance < 50"
+        when: perf.mobile.lh_performance is not none and perf.mobile.lh_performance < 50
+        points: 20
+      - id: slow_mobile_moderate
+        label: "Lighthouse mobile performance 50–74"
+        when: perf.mobile.lh_performance is not none and perf.mobile.lh_performance >= 50 and perf.mobile.lh_performance < 75
+        points: 10
+      - id: field_poor
+        label: "Field data poor (LCP p75 > 4 s or INP p75 > 500 ms)"
+        when: (perf.mobile.field_lcp_p75 is not none and perf.mobile.field_lcp_p75 > 4000) or (perf.mobile.field_inp_p75 is not none and perf.mobile.field_inp_p75 > 500)
+        points: 15
+      - id: wp_outdated
+        label: "WordPress two or more releases behind"
+        when: website.wp_releases_behind is not none and website.wp_releases_behind >= 2
+        points: 10
+      - id: heavy_builder_no_cache
+        label: "Heavy page builder without a detected caching layer"
+        when: website.page_builder in ["elementor", "wpbakery", "divi", "avada"] and website.caching_layer is none
+        points: 10
+      - id: tls_risk
+        label: "TLS invalid or expiring within 30 days"
+        when: website.tls_valid == false or (website.tls_days_left is not none and website.tls_days_left <= 30)
+        points: 10
+      - id: php_eol
+        label: "End-of-life PHP version exposed"
+        when: website.php_eol == true
+        points: 10
+      - id: shared_hosting
+        label: "Shared-hosting provider"
+        when: website.host_class == "shared"
+        points: 5
+      - id: managed_wp_host
+        label: "Already on a managed WordPress host"
+        when: website.host_class == "managed_wp" or website.managed_host is not none
+        points: -10
+  agency:
+    rules:
+      - id: agency_signals
+        label: "Agency signals (services copy, portfolio, WordPress repos)"
+        when: '"agency_keywords" in signals or "portfolio_page" in signals or "github_wordpress_org" in signals'
+        points: 25
+      - id: wp_detected
+        label: "Builds on WordPress"
+        when: website.cms == "wordpress"
+        points: 15
+      - id: woocommerce
+        label: "WooCommerce experience"
+        when: website.is_woocommerce == true
+        points: 5
+      - id: broken_confirmed
+        label: "Own site shows a confirmed error state"
+        when: website.error_state != "none" and website.error_confirmed == true
+        points: 10
+      - id: slow_mobile_severe
+        label: "Own site Lighthouse mobile < 50"
+        when: perf.mobile.lh_performance is not none and perf.mobile.lh_performance < 50
+        points: 10
+      - id: slow_mobile_moderate
+        label: "Own site Lighthouse mobile 50–74"
+        when: perf.mobile.lh_performance is not none and perf.mobile.lh_performance >= 50 and perf.mobile.lh_performance < 75
+        points: 5
+      - id: field_poor
+        label: "Own site field data poor"
+        when: (perf.mobile.field_lcp_p75 is not none and perf.mobile.field_lcp_p75 > 4000) or (perf.mobile.field_inp_p75 is not none and perf.mobile.field_inp_p75 > 500)
+        points: 10
+      - id: wp_outdated
+        label: "WordPress two or more releases behind"
+        when: website.wp_releases_behind is not none and website.wp_releases_behind >= 2
+        points: 5
+      - id: heavy_builder_no_cache
+        label: "Heavy page builder without caching"
+        when: website.page_builder in ["elementor", "wpbakery", "divi", "avada"] and website.caching_layer is none
+        points: 5
+      - id: tls_risk
+        label: "TLS invalid or expiring within 30 days"
+        when: website.tls_valid == false or (website.tls_days_left is not none and website.tls_days_left <= 30)
+        points: 5
+      - id: php_eol
+        label: "End-of-life PHP version exposed"
+        when: website.php_eol == true
+        points: 5
+      - id: managed_wp_host
+        label: "Own site already on a managed WordPress host"
+        when: website.host_class == "managed_wp" or website.managed_host is not none
+        points: -5

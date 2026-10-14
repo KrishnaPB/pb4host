@@ -1,0 +1,12 @@
+{
+  "id": "ChIJdemo0000000000000001",
+  "displayName": {"text": "Coastal Bakes", "languageCode": "en"},
+  "formattedAddress": "12 Lighthouse Hill Road, Mangaluru, Karnataka 575001, India",
+  "nationalPhoneNumber": "0824 245 6789",
+  "internationalPhoneNumber": "+91 824 245 6789",
+  "websiteUri": "https://coastalbakes.example/",
+  "googleMapsUri": "https://maps.google.com/?cid=1",
+  "rating": 4.6,
+  "userRatingCount": 212,
+  "businessStatus": "OPERATIONAL"
+}

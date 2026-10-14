@@ -1,0 +1,38 @@
+{
+  "places": [
+    {
+      "id": "ChIJdemo0000000000000001",
+      "displayName": {"text": "Coastal Bakes", "languageCode": "en"},
+      "businessStatus": "OPERATIONAL",
+      "websiteUri": "https://coastalbakes.example/",
+      "types": ["bakery", "food", "point_of_interest", "establishment"],
+      "location": {"latitude": 12.8746, "longitude": 74.8426},
+      "nationalPhoneNumber": "0824 245 6789",
+      "formattedAddress": "12 Lighthouse Hill Road, Mangaluru"
+    },
+    {
+      "id": "ChIJdemo0000000000000002",
+      "displayName": {"text": "Pixelgrove", "languageCode": "en"},
+      "businessStatus": "OPERATIONAL",
+      "websiteUri": "https://www.pixelgrove.example",
+      "types": ["website_designer", "marketing_agency", "point_of_interest", "establishment"],
+      "location": {"latitude": 13.3409, "longitude": 74.7421}
+    },
+    {
+      "id": "ChIJdemo0000000000000003",
+      "displayName": {"text": "No Website Stationers", "languageCode": "en"},
+      "businessStatus": "OPERATIONAL",
+      "types": ["store", "point_of_interest", "establishment"],
+      "location": {"latitude": 12.9, "longitude": 74.85}
+    },
+    {
+      "id": "ChIJdemo0000000000000004",
+      "displayName": {"text": "Closed Cafe", "languageCode": "en"},
+      "businessStatus": "CLOSED_PERMANENTLY",
+      "websiteUri": "https://closedcafe.example/",
+      "types": ["cafe"],
+      "location": {"latitude": 12.91, "longitude": 74.86}
+    }
+  ],
+  "nextPageToken": "NEXT_PAGE_TOKEN_1"
+}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Import #{{ batch.id }}{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Import #{{ batch.id }}</strong> — {{ batch.filename }} ({{ batch.kind }})</header>
+  <div class="grid">
+    <div><small>Rows</small><br>{{ batch.row_count }}</div>
+    <div><small>OK / errors</small><br>{{ batch.rows_ok }} / {{ batch.rows_error }}</div>
+    <div><small>Organisations</small><br>{{ batch.organizations_created }} new · {{ batch.organizations_matched }} matched</div>
+    <div><small>Contacts</small><br>{{ batch.persons_created }} (basis {{ batch.lawful_basis or 'none' }})</div>
+    <div><small>Track</small><br>{{ batch.track }}</div>
+    <div><small>When</small><br>{{ batch.created_at|dt }}</div>
+  </div>
+  <details><summary>Column mapping</summary><pre>{{ batch.column_mapping|tojson(indent=2) }}</pre></details>
+  {% if batch.errors %}
+  <h4>Row errors</h4>
+  <table class="compact"><thead><tr><th>Row</th><th>Error</th></tr></thead><tbody>
+  {% for e in batch.errors %}<tr><td>{{ e.row }}</td><td>{{ e.error }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% endif %}
+  <a href="/organizations?sort=newest">See newest organisations →</a>
+</article>
+{% endblock %}

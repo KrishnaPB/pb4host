@@ -1,0 +1,27 @@
+{
+  "id": "https://coastalbakes.example/",
+  "loadingExperience": {
+    "id": "https://coastalbakes.example/",
+    "metrics": {
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": {"percentile": 12, "category": "FAST"},
+      "INTERACTION_TO_NEXT_PAINT": {"percentile": 612, "category": "SLOW"},
+      "LARGEST_CONTENTFUL_PAINT_MS": {"percentile": 4850, "category": "SLOW"}
+    },
+    "overall_category": "SLOW",
+    "origin_fallback": true
+  },
+  "lighthouseResult": {
+    "requestedUrl": "https://coastalbakes.example/",
+    "finalDisplayedUrl": "https://coastalbakes.example/",
+    "lighthouseVersion": "12.6.0",
+    "audits": {
+      "largest-contentful-paint": {"id": "largest-contentful-paint", "numericValue": 6214.5, "numericUnit": "millisecond"},
+      "total-blocking-time": {"id": "total-blocking-time", "numericValue": 842.0, "numericUnit": "millisecond"},
+      "cumulative-layout-shift": {"id": "cumulative-layout-shift", "numericValue": 0.2412, "numericUnit": "unitless"},
+      "server-response-time": {"id": "server-response-time", "numericValue": 1340.2, "numericUnit": "millisecond"},
+      "speed-index": {"id": "speed-index", "numericValue": 7100.0}
+    },
+    "categories": {"performance": {"id": "performance", "score": 0.31}}
+  },
+  "analysisUTCTimestamp": "2026-10-13T08:00:00.000Z"
+}

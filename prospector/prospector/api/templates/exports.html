@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Exports{% endblock %}
+{% block content %}
+<div class="grid">
+  <article>
+    <header><strong>Organisations CSV</strong></header>
+    <form method="get" action="/exports/organizations.csv">
+      <div class="grid">
+        <label>Status <select name="status">{% for s in ('qualified','new','reviewing','exported','contacted','customer') %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></label>
+        <label>Track <select name="track"><option value="">any</option><option value="smb">SMB</option><option value="agency">Agency</option></select></label>
+        <label>Min score <input type="number" name="min_score" value="40" min="0" max="100"></label>
+      </div>
+      <label><input type="checkbox" name="mark_exported" value="true"> Mark qualified rows as <code>exported</code></label>
+      <button type="submit">Download CSV</button>
+      <small>Suppressed and anonymised organisations are excluded. Each row carries <code>source_summary</code>, <code>evidence_url</code> and a ready-to-use <code>notice_text</code> for the first message.</small>
+    </form>
+  </article>
+  <article>
+    <header><strong>Contacts CSV</strong></header>
+    <p>Only contacts with a lawful basis on record, not objected and not flagged do-not-contact, from organisations that are not suppressed.</p>
+    <a href="/exports/persons.csv" role="button">Download contacts CSV</a>
+    <p><small>Outreach policy: e-mail with notice, 1:1 LinkedIn messages, WhatsApp only after opt-in. No bulk unsolicited messaging, no SMS/voice telemarketing without TRAI DLT registration.</small></p>
+  </article>
+</div>
+{% endblock %}

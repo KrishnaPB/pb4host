@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+{% if totp_uri %}<article class="flash flash-success"><strong>Authenticator secret (shown once):</strong> <code>{{ totp_uri }}</code></article>{% endif %}
+<div class="grid two-one">
+  <article>
+    <header><strong>Users</strong></header>
+    <table>
+      <thead><tr><th>#</th><th>E-mail</th><th>Name</th><th>Role</th><th>2FA</th><th>Active</th><th>Last login</th><th></th></tr></thead>
+      <tbody>
+      {% for u in rows %}
+      <tr><td>{{ u.id }}</td><td>{{ u.email }}</td><td>{{ u.name }}</td><td>{{ u.role }}</td><td>{{ 'on' if u.totp_secret else 'off' }}</td><td>{{ 'yes' if u.is_active else 'no' }}</td><td>{{ u.last_login_at|dt }}</td>
+        <td class="button-row">
+          <form method="post" action="/admin/users/{{ u.id }}/totp" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="{{ 'disable' if u.totp_secret else 'enable' }}"><button class="secondary outline small">{{ 'Disable 2FA' if u.totp_secret else 'Enable 2FA' }}</button></form>
+          {% if u.id != user.id %}<form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="contrast outline small">{{ 'Deactivate' if u.is_active else 'Activate' }}</button></form>{% endif %}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </article>
+  <article>
+    <header><strong>Create user</strong></header>
+    <form method="post" action="/admin/users">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>E-mail <input type="email" name="email" required></label>
+      <label>Name <input name="name"></label>
+      <label>Role <select name="role">{% for r in roles %}<option value="{{ r }}" {% if r == 'analyst' %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></label>
+      <label>Password (≥12 chars) <input type="password" name="password" minlength="12" required></label>
+      <button type="submit">Create</button>
+      <small>viewer: read-only · analyst: runs, review, imports, exports · owner: connectors, users, audit, erasure.</small>
+    </form>
+  </article>
+</div>
+{% endblock %}

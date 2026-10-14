@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Imports{% endblock %}
+{% block content %}
+<div class="grid two-one">
+  <article>
+    <header><strong>Import batches</strong></header>
+    <table>
+      <thead><tr><th>#</th><th>File</th><th>Kind</th><th>Rows</th><th>OK</th><th>Errors</th><th>Orgs new/matched</th><th>Contacts</th><th>Basis</th><th>When</th></tr></thead>
+      <tbody>
+      {% for b in batches %}
+      <tr><td><a href="/imports/{{ b.id }}">{{ b.id }}</a></td><td>{{ b.filename }}</td><td>{{ b.kind }}</td><td class="num">{{ b.row_count }}</td><td class="num">{{ b.rows_ok }}</td><td class="num">{{ b.rows_error }}</td>
+        <td class="num">{{ b.organizations_created }} / {{ b.organizations_matched }}</td><td class="num">{{ b.persons_created }}</td><td>{{ b.lawful_basis or '—' }}</td><td>{{ b.created_at|dt }}</td></tr>
+      {% else %}<tr><td colspan="10">No imports yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+  <article>
+    <header><strong>Upload CSV</strong></header>
+    <form method="post" action="/imports" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>File <input type="file" name="file" accept=".csv,text/csv" required></label>
+      <label>Preset
+        <select name="kind">
+          <option value="generic">Generic (company, website, email, phone, city, country, first_name, last_name, role, person_email, linkedin_url)</option>
+          <option value="woocommerce_customers">WooCommerce customers export</option>
+          <option value="linkedin_connections">My LinkedIn Connections.csv (owner's own export)</option>
+        </select></label>
+      <label>Track <select name="track"><option value="unknown">unknown</option><option value="smb">SMB</option><option value="agency">Agency</option></select></label>
+      <label>Lawful basis for any named contacts
+        <select name="lawful_basis">
+          <option value="">— none: import organisations only, skip people —</option>
+          {% for b in lawful_bases %}<option value="{{ b }}">{{ b }}</option>{% endfor %}
+        </select></label>
+      <label>Notice status <select name="notice_status"><option value="pending">pending</option><option value="sent">sent</option><option value="not_required">not_required</option></select></label>
+      <label>Column mapping override (JSON, optional) <input name="mapping_json" placeholder='{"company": "Business Name"}'></label>
+      <button type="submit">Import</button>
+      <small>Rows with people are imported as contacts only when a lawful basis is declared (existing customers → <code>contract</code>; your own LinkedIn connections → <code>legitimate_interest</code> with an LIA on file). Websites found in the file are queued for enrichment.</small>
+    </form>
+  </article>
+</div>
+{% endblock %}

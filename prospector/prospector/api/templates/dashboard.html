@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="grid stats">
+  <article><header>Pipeline</header>
+    <table class="compact">
+      {% for k, v in by_status.items() %}<tr><td>{{ k }}</td><td class="num">{{ v }}</td></tr>{% endfor %}
+    </table></article>
+  <article><header>Open leads by band</header>
+    <table class="compact">
+      {% for k, v in by_band.items() %}<tr><td><span class="band {{ band_class(k) }}">{{ k }}</span></td><td class="num">{{ v }}</td></tr>{% endfor %}
+    </table>
+    <small>Tracks: {% for k, v in by_track.items() %}{{ k }} {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}</small></article>
+  <article><header>Queue</header>
+    <table class="compact">
+      {% for k, v in jobs.items() %}<tr><td>{{ k }}</td><td class="num">{{ v }}</td></tr>{% endfor %}
+    </table>
+    <small>Contacts on file: {{ persons }} · last retention run: {{ last_retention.at|dt if last_retention else 'never' }}</small></article>
+  <article><header>Connectors</header>
+    <table class="compact">
+      {% for c in connectors %}<tr><td>{{ c.name }}</td><td>{% if not c.enabled %}<span class="tag off">off</span>{% elif c.requires_terms_review and not c.terms_reviewed_at %}<span class="tag warn">review</span>{% else %}<span class="tag ok">on</span>{% endif %}</td><td class="num">{{ c.calls_today }}/{{ c.daily_cap }}</td></tr>{% endfor %}
+    </table></article>
+</div>
+<div class="grid">
+  <article>
+    <header><strong>Top open leads</strong> <a href="/organizations?status=new" class="right">review queue →</a></header>
+    <table>
+      <thead><tr><th>Organisation</th><th>Track</th><th>Score</th><th>Signals</th></tr></thead>
+      <tbody>
+      {% for o in top %}
+      <tr><td><a href="/organizations/{{ o.id }}">{{ o.label }}</a><br><small>{{ o.domain or '' }} {{ o.city or '' }}</small></td>
+        <td>{{ o.track }}</td><td><span class="band {{ band_class(o.score_band) }}">{{ o.score_total }}</span></td>
+        <td><small>{{ o.signals[:5]|join(', ') }}</small></td></tr>
+      {% else %}<tr><td colspan="4">No leads yet — start a <a href="/runs">discovery run</a>, <a href="/capture">capture</a> one manually or <a href="/imports">import</a> a CSV.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+  <article>
+    <header><strong>Recent runs</strong> <a href="/runs" class="right">all runs →</a></header>
+    <table>
+      <thead><tr><th>#</th><th>Query</th><th>Status</th><th>Found</th><th>New</th></tr></thead>
+      <tbody>
+      {% for r in recent_runs %}
+      <tr><td><a href="/runs/{{ r.id }}">{{ r.id }}</a></td><td>{{ r.query }}{% if r.location %} <small>in {{ r.location }}</small>{% endif %}</td>
+        <td><span class="tag {{ r.status }}">{{ r.status }}</span></td><td class="num">{{ r.candidates_found }}</td><td class="num">{{ r.organizations_created }}</td></tr>
+      {% else %}<tr><td colspan="5">No runs yet.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </article>
+</div>
+{% endblock %}

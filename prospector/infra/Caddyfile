@@ -1,0 +1,19 @@
+{
+	email {$ADMIN_EMAIL}
+}
+
+{$PROSPECTOR_HOST} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'"
+		-Server
+	}
+	# Metrics stay internal; scrape them from the host instead.
+	@metrics path /metrics
+	respond @metrics 404
+	reverse_proxy web:8000
+}

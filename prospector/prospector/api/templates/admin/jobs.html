@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Jobs{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Job queue</strong>
+    {% for k, v in counts.items() %}<a href="/admin/jobs?status={{ k }}" class="tag {{ 'ok' if k == 'done' else ('warn' if k == 'failed' else '') }}">{{ k }} {{ v }}</a> {% endfor %}
+    {% if user.role == 'owner' %}<form method="post" action="/admin/retention/run" class="inline right"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary outline small">Run retention now</button></form>{% endif %}
+  </header>
+  <table class="compact">
+    <thead><tr><th>#</th><th>Type</th><th>Status</th><th>Payload</th><th>Attempts</th><th>Run after</th><th>Finished</th><th>Error</th><th></th></tr></thead>
+    <tbody>
+    {% for j in rows %}
+    <tr><td>{{ j.id }}</td><td>{{ j.type }}</td><td><span class="tag {{ j.status }}">{{ j.status }}</span></td><td><small><code>{{ j.payload|tojson }}</code></small></td><td class="num">{{ j.attempts }}/{{ j.max_attempts }}</td>
+      <td>{{ j.run_after|dt }}</td><td>{{ j.finished_at|dt }}</td><td><small>{{ (j.last_error or '')[:200] }}</small></td>
+      <td>{% if j.status == 'failed' %}<form method="post" action="/admin/jobs/{{ j.id }}/retry" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="secondary outline small">Retry</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="9">No jobs.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</article>
+{% endblock %}

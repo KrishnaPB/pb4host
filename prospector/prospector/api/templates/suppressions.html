@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Rights &amp; do-not-contact{% endblock %}
+{% block content %}
+<div class="grid two-one">
+  <div>
+    <article>
+      <header><strong>Rights request lookup</strong> <small>find everything held about a domain, e-mail, phone, name or place ID</small></header>
+      <form method="post" action="/rights/lookup">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <fieldset role="group"><input name="query" value="{{ query }}" placeholder="example.in / info@example.in / +91… / Acme" required><button type="submit">Look up</button></fieldset>
+      </form>
+      {% if matches %}
+      <h4>Organisations ({{ matches.organizations|length }})</h4>
+      <table class="compact"><thead><tr><th>#</th><th>Name</th><th>Domain</th><th>Status</th><th></th></tr></thead><tbody>
+      {% for o in matches.organizations %}
+      <tr><td>{{ o.id }}</td><td><a href="/organizations/{{ o.id }}">{{ o.label }}</a></td><td>{{ o.domain or '' }}</td><td>{{ o.status }}</td>
+        <td class="button-row"><a href="/rights/export/{{ o.id }}" role="button" class="secondary outline small">Export JSON</a>
+          {% if user.role == 'owner' %}<form method="post" action="/rights/erase" class="inline" onsubmit="return confirm('Anonymise organisation and suppress its identifiers?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="organization_id" value="{{ o.id }}"><button class="contrast outline small">Erase</button></form>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="5">None.</td></tr>{% endfor %}
+      </tbody></table>
+      <h4>Contacts ({{ matches.persons|length }})</h4>
+      <table class="compact"><thead><tr><th>#</th><th>Name</th><th>Organisation</th><th>Basis</th><th></th></tr></thead><tbody>
+      {% for p in matches.persons %}
+      <tr><td>{{ p.id }}</td><td>{{ p.full_name }}</td><td><a href="/organizations/{{ p.organization_id }}">#{{ p.organization_id }}</a></td><td>{{ p.lawful_basis }} / {{ p.notice_status }}</td>
+        <td>{% if user.role == 'owner' %}<form method="post" action="/rights/erase" class="inline" onsubmit="return confirm('Erase this contact and suppress their identifiers?')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="person_id" value="{{ p.id }}"><button class="contrast outline small">Erase</button></form>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="5">None.</td></tr>{% endfor %}
+      </tbody></table>
+      {% endif %}
+    </article>
+    <article>
+      <header><strong>Suppression list</strong> <small>salted hashes only — the original value is never stored</small></header>
+      <table class="compact"><thead><tr><th>#</th><th>Kind</th><th>Reason</th><th>Requested by</th><th>When</th></tr></thead><tbody>
+      {% for s in rows %}<tr><td>{{ s.id }}</td><td>{{ s.kind }}</td><td>{{ s.reason }}</td><td>{{ s.requested_by or '—' }}</td><td>{{ s.created_at|dt }}</td></tr>
+      {% else %}<tr><td colspan="5">Empty.</td></tr>{% endfor %}
+      </tbody></table>
+    </article>
+  </div>
+  <article>
+    <header><strong>Add to do-not-contact</strong></header>
+    <form method="post" action="/suppressions">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Kind <select name="kind">{% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}</select></label>
+      <label>Value <input name="value" required placeholder="example.in / info@example.in / +91 …"></label>
+      <label>Reason <input name="reason" placeholder="opt-out request, bounced, competitor…"></label>
+      <button type="submit">Suppress</button>
+      <small>Suppressed identifiers are skipped during discovery, never exported, and kept forever (as hashes) so they cannot be re-added.</small>
+    </form>
+  </article>
+</div>
+{% endblock %}
