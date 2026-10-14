@@ -113,6 +113,9 @@ class CsvImportConnector(Connector):
                       summary.organizations_matched += 1
                   ref = f"import://batch/{batch.id}/row/{index}"
                   facts: list[Fact] = []
+                  if resolved.profile_url:
+                      website = None
+                      facts.append(Fact("organization.social", f"{resolved.profile_network}={resolved.profile_url}", source, ref, 0.9))
                   if company and not org.display_name:
                       facts.append(Fact("organization.display_name", company, source, ref, 0.8))
                   if website:

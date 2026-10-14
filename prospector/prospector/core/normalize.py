@@ -139,3 +139,39 @@ def normalize_name(name: str | None) -> str:
     text = _LEGAL_SUFFIX_RE.sub(" ", name)
     text = re.sub(r"[^a-z0-9]+", " ", text.lower())
     return " ".join(text.split())
+
+
+# Hosts that are somebody else's platform, never the business's own website. A hint pointing at
+# one of these must not become the organisation's domain (every Facebook page would otherwise
+# dedupe into a single "facebook.com" organisation) — it is recorded as a social link instead.
+HOSTED_PROFILE_HOSTS: dict[str, str] = {
+    "facebook.com": "facebook", "fb.com": "facebook", "instagram.com": "instagram", "linkedin.com": "linkedin",
+    "twitter.com": "x", "x.com": "x", "youtube.com": "youtube", "youtu.be": "youtube", "linktr.ee": "linktree",
+    "wa.me": "whatsapp", "whatsapp.com": "whatsapp", "api.whatsapp.com": "whatsapp", "t.me": "telegram",
+    "g.page": "google", "goo.gl": "google", "maps.app.goo.gl": "google", "business.site": "google_site",
+    "sites.google.com": "google_site", "justdial.com": "justdial", "sulekha.com": "sulekha",
+    "indiamart.com": "indiamart", "tradeindia.com": "tradeindia", "zomato.com": "zomato", "swiggy.com": "swiggy",
+    "practo.com": "practo", "amazon.in": "amazon", "flipkart.com": "flipkart", "meesho.com": "meesho",
+    "pinterest.com": "pinterest", "threads.net": "threads", "github.com": "github", "behance.net": "behance",
+    "dribbble.com": "dribbble", "clutch.co": "clutch", "goodfirms.co": "goodfirms", "upwork.com": "upwork",
+}
+
+
+def hosted_profile_network(url: str | None) -> str | None:
+    """Return the platform name when `url` points at a hosted profile rather than an own website."""
+    if not url:
+        return None
+    norm = normalize_url(url) or url
+    host = (urlsplit(norm).hostname or "").lower()
+    if not host:
+        return None
+    if host in HOSTED_PROFILE_HOSTS:
+        return HOSTED_PROFILE_HOSTS[host]
+    reg = registered_domain(norm)
+    return HOSTED_PROFILE_HOSTS.get(reg or "")
+
+
+def site_root(url: str) -> str:
+    """scheme://host/ for a URL — the page the probe starts from."""
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}/"

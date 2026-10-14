@@ -34,7 +34,7 @@ def classify(status: int | None, html: str, fetch_error: str | None) -> str:
         return "tls_invalid"
     if err.startswith("timeout"):
         return "timeout"
-    if err.startswith(("connection", "too_many_redirects", "http_error", "transport")):
+    if err.startswith(("connection", "too_many_redirects", "http_error", "transport", "blocked", "refused")):
         return "unreachable"
     text = html or ""
     if status is not None and status >= 500:

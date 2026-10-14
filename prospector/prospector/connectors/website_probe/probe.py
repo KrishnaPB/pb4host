@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from ...core.facts import Fact
-from ...core.normalize import host_key, is_generic_mailbox, normalize_url, registered_domain
+from ...core.normalize import host_key, is_generic_mailbox, normalize_url, registered_domain, site_root
 from ...util import slugify, utcnow
 from ..base import Connector, register
 from .extract import PageFacts, extract
@@ -63,9 +63,15 @@ class WebsiteProbeConnector(Connector):
         self.tls_lookup = tls_lookup or tls_info
 
     def probe(self, session, url_hint: str, *, country_hint: str | None = None, homepage_only: bool = False) -> ProbeResult:
-        url = normalize_url(url_hint)
-        if url is None:
+        hinted = normalize_url(url_hint)
+        if hinted is None:
             raise ValueError(f"invalid URL hint {url_hint!r}")
+        # Probe the *site*: start at its root even when the hint carries a path or query string
+        # (Places websiteUri values often do). The hinted page is visited later only if it is a
+        # passive page the crawler is allowed to open anyway.
+        url = site_root(hinted)
+        hinted_path = urlsplit(hinted).path or "/"
+        hinted_page = url.rstrip("/") + hinted_path if hinted_path != "/" and self.fetcher.path_allowed(hinted) else None
         # count one "call" per site, not per page, against the crawler cap (R11 still applies)
         self.reserve_calls(session, 1)
         now = utcnow()
@@ -105,7 +111,7 @@ class WebsiteProbeConnector(Connector):
 
         if not homepage_only:
             extra: list[str] = []
-            for link in home_facts.contact_links[:2] + home_facts.about_links[:1]:
+            for link in ([hinted_page] if hinted_page else []) + home_facts.contact_links[:2] + home_facts.about_links[:1]:
                 if link not in extra and link.rstrip("/") != page_url.rstrip("/"):
                     extra.append(link)
             for link in extra:
@@ -146,7 +152,8 @@ class WebsiteProbeConnector(Connector):
             Fact("website.http_status", result.status, "own_website", src, 1.0, now),
             Fact("website.error_state", result.error_state, "own_website", src, 0.9, now),
         ]
-        if home.site_name:
+        # An error/parked page's <title> ("Database Error", "Site Maintenance") is not a business name.
+        if home.site_name and (result.error_state == "none" or home.site_name_source == "jsonld"):
             conf = {"jsonld": 0.95, "title": 0.6}.get(home.site_name_source or "", 0.8)
             facts.append(Fact("organization.display_name", home.site_name, "own_website", src, conf, now))
         if fp.cms:

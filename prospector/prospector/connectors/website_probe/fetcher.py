@@ -8,7 +8,9 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import threading
 import time
 from dataclasses import dataclass, field
@@ -34,6 +36,32 @@ PASSIVE_PATHS = [
     ),
 ]
 ACTIVE_PATHS = [re.compile(r"^/readme\.html$", re.IGNORECASE), re.compile(r"^/wp-json/?$", re.IGNORECASE)]
+
+
+def host_is_public(host: str) -> bool | None:
+    """SSRF guard: True when every resolved address is globally routable, False when any is
+    private/loopback/link-local/reserved, None when the name does not resolve (the HTTP client
+    will then report its own DNS failure)."""
+    host = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    host = host.strip("[]")
+    if host.lower() in {"localhost", "localhost.localdomain"}:
+        return False
+    try:
+        addresses = {ipaddress.ip_address(host)}
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        except (socket.gaierror, UnicodeError, OSError):
+            return None
+        addresses = set()
+        for info in infos:
+            try:
+                addresses.add(ipaddress.ip_address(info[4][0]))
+            except ValueError:
+                continue
+        if not addresses:
+            return None
+    return all(addr.is_global and not addr.is_multicast for addr in addresses)
 
 
 class HostRateLimiter:
@@ -104,6 +132,11 @@ class Fetcher:
             return True
         return bool(self.settings.crawler_active_probes and any(p.match(path) for p in ACTIVE_PATHS))
 
+    def _host_allowed(self, url: str) -> bool:
+        if self.settings.crawler_allow_private_hosts:
+            return True
+        return host_is_public(urlsplit(url).hostname or "") is not False
+
     # --- robots --------------------------------------------------------------------------
     def _robots_for(self, url: str) -> Protego | None:
         parts = urlsplit(url)
@@ -139,6 +172,9 @@ class Fetcher:
         if not self.path_allowed(url):
             raise PathNotAllowed(f"refusing non-passive path: {url}")
         result = FetchResult(requested_url=url, final_url=None, status=None)
+        if not self._host_allowed(url):
+            result.error = "blocked_private_address"
+            return result
         if check_robots and not self.can_fetch(url):
             result.robots_blocked = True
             result.error = "robots_disallow"
@@ -155,7 +191,7 @@ class Fetcher:
                     if status in (301, 302, 303, 307, 308) and headers.get("location"):
                         nxt = urljoin(current, headers["location"])
                         result.redirect_chain.append(nxt)
-                        if urlsplit(nxt).netloc != host and not self.path_allowed(nxt):
+                        if urlsplit(nxt).netloc != host and (not self.path_allowed(nxt) or not self._host_allowed(nxt)):
                             result.error = "refused"
                             result.status = status
                             return result

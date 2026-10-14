@@ -69,3 +69,27 @@ def test_missing_api_key_is_a_clear_error(session, settings):
     places = GooglePlacesConnector(settings, client=httpx.Client())
     with pytest.raises(ConnectorError, match="GOOGLE_MAPS_API_KEY"):
         places.search_text(session, "x")
+
+
+@respx.mock
+def test_hosted_profile_website_hint_counts_as_no_website(session, places):
+    from prospector.api.routers.runs import create_run
+    from prospector.jobs import tasks
+    from prospector.models import DiscoveryRun, Organization
+
+    data = json_fixture("places_search.json")
+    data["places"][0]["websiteUri"] = "https://www.facebook.com/coastalbakes"
+    data["places"][1]["websiteUri"] = "https://linktr.ee/pixelgrove"
+    data["nextPageToken"] = None
+    respx.post(TEXT_SEARCH_URL).mock(return_value=httpx.Response(200, json=data))
+    tasks.overrides["google_places"] = places
+    try:
+        run = create_run(session, query="bakery", location=None, track="smb", max_pages=1, region_code="IN", user=None)
+        session.commit()
+        tasks.places_text_search(session, {"run_id": run.id, "page_no": 1})
+    finally:
+        tasks.overrides.clear()
+    run = session.get(DiscoveryRun, run.id)
+    assert run.candidates_without_website == 3 and run.organizations_created == 1
+    orgs = session.query(Organization).all()
+    assert [o.domain for o in orgs] == ["closedcafe.example"]

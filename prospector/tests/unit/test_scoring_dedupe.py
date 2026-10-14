@@ -89,3 +89,18 @@ def test_merge_keeps_evidence_and_marks_duplicate(session):
     assert "+918202520000" in a.phones
     assert len(a.websites) == 2
     assert any(e.field == "organization.phone" for e in a.evidence)
+
+
+def test_hosted_profile_urls_never_become_the_domain(session):
+    from prospector.core.normalize import hosted_profile_network
+    from prospector.core.organizations import resolve_organization
+
+    assert hosted_profile_network("https://www.facebook.com/acmebakery") == "facebook"
+    assert hosted_profile_network("linktr.ee/acme") == "linktree"
+    assert hosted_profile_network("https://m.facebook.com/pages/x/1") == "facebook"
+    assert hosted_profile_network("https://acmebakery.in/") is None
+    a = resolve_organization(session, website="https://www.facebook.com/acmebakery", name="Acme Bakery", city="Udupi")
+    b = resolve_organization(session, website="https://www.facebook.com/zenclinic", name="Zen Clinic", city="Udupi")
+    assert a.created and b.created and a.organization.id != b.organization.id
+    assert a.organization.domain is None and a.organization.website_url is None
+    assert a.profile_network == "facebook" and a.profile_url == "https://www.facebook.com/acmebakery"

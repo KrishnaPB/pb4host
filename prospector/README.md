@@ -62,12 +62,16 @@ clear error when the cap is reached and resume automatically the next day.
 ## Week-2 validation spike
 
 ```bash
-prospector spike urls.txt --track smb --out spike-report.json
+prospector spike urls.txt --out spike-report.json
 ```
 
-Probes each URL (one line per site), scores it and writes a report with empty `human_review` fields. Fill in
-`cms_correct` / `contact_correct` for 50 sites to measure precision against the plan's targets (≥90 % CMS,
-≥85 % contact facts). Add `--pagespeed` once that connector is reviewed.
+Probes each URL (one line per site; hints with paths or tracking parameters are reduced to the site root), scores
+it and writes a report with empty `human_review` fields. Fill in `cms_correct` / `contact_correct` for 50 sites to
+measure precision against the plan's targets (≥90 % CMS, ≥85 % contact facts). Add `--pagespeed` once that
+connector is reviewed. Agency signals promote `--track unknown` sites to the agency track automatically.
+
+The crawler refuses loopback, private, link-local and reserved addresses (SSRF guard) — set
+`CRAWLER_ALLOW_PRIVATE_HOSTS=true` only for a local dry run against fixture sites, never in production.
 
 ## Deployment (PB4HOST VPS)
 

@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     crawler_max_bytes: int = 2_000_000
     crawler_max_pages: int = 6
     crawler_active_probes: bool = False  # /readme.html and /wp-json/ fetches, default off
+    crawler_allow_private_hosts: bool = False  # SSRF guard override for local development only
     crawler_daily_cap: int = 5000
 
     default_country: str = "IN"

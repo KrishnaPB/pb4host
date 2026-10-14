@@ -18,7 +18,7 @@ from ..connectors.google_places import GooglePlacesConnector
 from ..connectors.pagespeed import PageSpeedConnector
 from ..connectors.website_probe.probe import WebsiteProbeConnector, write_snapshot
 from ..core.facts import Fact, apply_facts
-from ..core.normalize import registered_domain
+from ..core.normalize import hosted_profile_network, registered_domain
 from ..core.organizations import ensure_website, resolve_organization
 from ..core.scoring import score_organization as _score
 from ..models import (
@@ -89,6 +89,11 @@ def places_text_search(session: Session, payload: dict[str, Any]) -> None:
     run.candidates_found += page.raw_count
     run.candidates_without_website += page.without_website
     for cand in page.candidates:
+        if hosted_profile_network(cand.website_hint):
+            # a Facebook page / Linktree / marketplace listing is not an own website: nothing to
+            # enrich from, and Google content itself may not be stored (R3)
+            run.candidates_without_website += 1
+            continue
         if is_suppressed(session, "place_id", cand.external_id) or is_suppressed(session, "domain", cand.website_hint or ""):
             run.candidates_suppressed += 1
             continue

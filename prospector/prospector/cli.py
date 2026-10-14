@@ -162,7 +162,7 @@ def run_discovery(
 @app.command("spike")
 def spike(
     urls_file: Path = typer.Argument(..., exists=True, readable=True, help="Text file with one website URL per line."),
-    track: str = typer.Option("smb"),
+    track: str = typer.Option("unknown", help="smb, agency or unknown (lets agency signals promote the track)."),
     pagespeed: bool = typer.Option(False, help="Also run PageSpeed (needs terms review + quota)."),
     out: Path = typer.Option(Path("spike-report.json")),
 ):

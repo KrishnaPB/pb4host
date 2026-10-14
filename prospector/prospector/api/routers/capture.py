@@ -53,8 +53,12 @@ def capture(
     resolved = resolve_organization(db, website=website or None, name=company, city=city or None,
                                     country=(country or None), track=track)
     org = resolved.organization
+    if resolved.profile_url:
+        website = ""  # a hosted profile is a social link, not a website to probe
     site = ensure_website(db, org, website) if website.strip() else None
     facts = [Fact("organization.display_name", company.strip(), "manual_research", reference_url, 0.8)]
+    if resolved.profile_url:
+        facts.append(Fact("organization.social", f"{resolved.profile_network}={resolved.profile_url}", "manual_research", reference_url, 0.9))
     if website.strip():
         facts.append(Fact("organization.website_url", website.strip(), "manual_research", reference_url, 0.9))
     if city.strip():

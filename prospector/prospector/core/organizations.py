@@ -8,13 +8,15 @@ from sqlalchemy.orm import Session
 
 from ..models import Organization, Website
 from .dedupe import find_existing
-from .normalize import host_key, normalize_url
+from .normalize import host_key, hosted_profile_network, normalize_url
 
 
 @dataclass
 class Resolved:
     organization: Organization
     created: bool
+    profile_url: str | None = None  # a hosted-profile URL that was offered as "website"
+    profile_network: str | None = None
 
 
 def resolve_organization(
@@ -29,6 +31,9 @@ def resolve_organization(
     registry_ids: dict[str, str] | None = None,
     track: str = "unknown",
 ) -> Resolved:
+    profile_url = profile_network = None
+    if website and (network := hosted_profile_network(website)):
+        profile_url, profile_network, website = normalize_url(website), network, None
     domain = host_key(website) if website else None
     existing = find_existing(
         session,
@@ -42,7 +47,7 @@ def resolve_organization(
     if existing is not None:
         if existing.track == "unknown" and track != "unknown":
             existing.track = track
-        return Resolved(existing, False)
+        return Resolved(existing, False, profile_url, profile_network)
     org = Organization(
         domain=domain,
         website_url=normalize_url(website) if website else None,
@@ -53,7 +58,7 @@ def resolve_organization(
     )
     session.add(org)
     session.flush()
-    return Resolved(org, True)
+    return Resolved(org, True, profile_url, profile_network)
 
 
 def ensure_website(session: Session, org: Organization, url: str) -> Website:
