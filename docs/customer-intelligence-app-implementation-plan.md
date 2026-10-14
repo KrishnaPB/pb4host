@@ -361,7 +361,7 @@ Quarterly: re-read Google, LinkedIn and GitHub terms (R10 enforces 90 days); ref
 | 8 | Outreach channels | Email with notice and opt-out; one-to-one LinkedIn messages from the owner; WhatsApp only on inbound/opt-in; no SMS/calling lists |
 | 9 | Retention periods | Defaults in R5 |
 | 10 | Licensed data vendor | Not in v1; revisit after 60 days of outcomes |
-| 11 | Where the code lives | A dedicated repository `pb4host-prospector` (this repository stays documentation); same licence family |
+| 11 | Where the code lives | Phase 1 code lives in this repository under [`prospector/`](../prospector/) (same GPL-3.0 licence); split into a dedicated `pb4host-prospector` repository later if the app outgrows the documentation repo |
 | 12 | Counsel engagement | Two reviews: Phase 0 gate and before the first outreach batch |
 
 ## Appendix A — Proposed repository layout

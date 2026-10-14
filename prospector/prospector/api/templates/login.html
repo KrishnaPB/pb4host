@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<article class="login-card">
+  <h2>Sign in</h2>
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next }}">
+    <label>E-mail <input type="email" name="email" autocomplete="username" required autofocus></label>
+    <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+    <label>Authenticator code <small>(only if 2FA is enabled)</small> <input type="text" name="totp" inputmode="numeric" autocomplete="one-time-code"></label>
+    <button type="submit">Sign in</button>
+  </form>
+</article>
+{% endblock %}

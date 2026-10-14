@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Audit log</strong>
+    <form method="get" action="/admin/audit" class="inline right"><input name="action" value="{{ action }}" placeholder="filter: export., person., rights."><button class="secondary outline small">Filter</button></form></header>
+  <table class="compact">
+    <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+    <tr><td>{{ r.at|dt('%Y-%m-%d %H:%M:%S') }}</td><td>{{ r.actor_label or '—' }}</td><td><code>{{ r.action }}</code></td><td>{% if r.entity_type %}{{ r.entity_type }} #{{ r.entity_id }}{% endif %}</td><td><small>{{ r.meta|tojson }}</small></td></tr>
+    {% else %}<tr><td colspan="5">Empty.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</article>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Organisations{% endblock %}
+{% block content %}
+<article>
+  <form method="get" action="/organizations" class="filters">
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="name, domain or city">
+    <select name="track"><option value="">any track</option>{% for t in ('smb','agency','unknown') %}<option value="{{ t }}" {% if filters.track == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select>
+    <select name="status"><option value="">open (new/reviewing/qualified…)</option>{% for s in statuses %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    <select name="band"><option value="">any band</option>{% for b in ('hot','warm','cold') %}<option value="{{ b }}" {% if filters.band == b %}selected{% endif %}>{{ b }}</option>{% endfor %}</select>
+    <select name="cms"><option value="">any CMS</option>{% for c in ('wordpress','shopify','wix','squarespace','joomla','drupal','none') %}<option value="{{ c }}" {% if filters.cms == c %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <select name="error_state"><option value="">any health</option><option value="any" {% if filters.error_state == 'any' %}selected{% endif %}>any error</option>{% for e in ('server_error','db_error','php_error','maintenance','dns_fail','tls_invalid','parked','timeout') %}<option value="{{ e }}" {% if filters.error_state == e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+    <select name="host_class"><option value="">any host</option>{% for h in ('shared','managed_wp','cloud','cdn_proxied','unknown') %}<option value="{{ h }}" {% if filters.host_class == h %}selected{% endif %}>{{ h }}</option>{% endfor %}</select>
+    <input type="number" name="min_score" value="{{ filters.min_score }}" placeholder="min score" min="0" style="max-width:8rem">
+    <select name="sort"><option value="score" {% if filters.sort == 'score' %}selected{% endif %}>by score</option><option value="newest" {% if filters.sort == 'newest' %}selected{% endif %}>newest</option><option value="name" {% if filters.sort == 'name' %}selected{% endif %}>by name</option></select>
+    <button type="submit">Filter</button>
+  </form>
+  <table>
+    <thead><tr><th>Organisation</th><th>Location</th><th>Track</th><th>Status</th><th>Score</th><th>Stack</th><th>Health</th><th>Host</th><th>Top signals</th></tr></thead>
+    <tbody>
+    {% for o in orgs %}{% set s = o.primary_website %}
+    <tr>
+      <td><a href="/organizations/{{ o.id }}">{{ o.label }}</a><br><small>{{ o.domain or '' }}</small></td>
+      <td><small>{{ o.city or '' }}{% if o.country %} {{ o.country }}{% endif %}</small></td>
+      <td>{{ o.track }}</td>
+      <td><span class="tag {{ o.status }}">{{ o.status }}</span></td>
+      <td><span class="band {{ band_class(o.score_band) }}">{{ o.score_total }}</span></td>
+      <td><small>{% if s and s.cms %}{{ s.cms }}{% if s.cms_version %} {{ s.cms_version }}{% endif %}{% if s.is_woocommerce %} + Woo{% endif %}{% if s.page_builder %} · {{ s.page_builder }}{% endif %}{% else %}—{% endif %}</small></td>
+      <td><small>{% if s and s.error_state != 'none' %}<span class="error">{{ s.error_state }}{% if s.error_confirmed_at %} ✓{% else %} ?{% endif %}</span>{% elif s and s.http_status %}{{ s.http_status }}{% else %}—{% endif %}</small></td>
+      <td><small>{{ s.host_provider or s.host_class or '—' if s else '—' }}</small></td>
+      <td><small>{{ o.signals[:4]|join(', ') }}</small></td>
+    </tr>
+    {% else %}<tr><td colspan="9">No organisations match.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  <nav class="pager">
+    {% set base = '/organizations?' ~ qs %}
+    {% if page > 1 %}<a href="{{ base }}&page={{ page - 1 }}">← previous</a>{% endif %}
+    <span>page {{ page }}</span>
+    {% if has_next %}<a href="{{ base }}&page={{ page + 1 }}">next →</a>{% endif %}
+  </nav>
+</article>
+{% endblock %}

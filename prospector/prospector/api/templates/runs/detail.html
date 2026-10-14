@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }}{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Run #{{ run.id }}</strong> — {{ run.query }}{% if run.location %} in {{ run.location }}{% endif %}
+    <span class="tag {{ run.status }}">{{ run.status }}</span>
+    {% if run.status in ('queued', 'running') %}
+    <form method="post" action="/runs/{{ run.id }}/cancel" class="inline right"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="outline secondary small">Cancel</button></form>
+    {% endif %}
+  </header>
+  <div class="grid">
+    <div><small>Track</small><br>{{ run.track }}</div>
+    <div><small>Pages</small><br>{{ run.pages_fetched }} / {{ run.max_pages }}</div>
+    <div><small>Candidates</small><br>{{ run.candidates_found }} ({{ run.candidates_without_website }} without website, {{ run.candidates_suppressed }} suppressed)</div>
+    <div><small>Organisations</small><br>{{ run.organizations_created }} new · {{ run.organizations_matched }} matched</div>
+    <div><small>API calls</small><br>{{ run.calls_made }} (~${{ '%.3f'|format(run.cost_estimate_usd) }})</div>
+    <div><small>Started / finished</small><br>{{ run.started_at|dt }} / {{ run.finished_at|dt }}</div>
+  </div>
+  {% if run.error %}<p class="error">{{ run.error }}</p>{% endif %}
+</article>
+<article>
+  <header><strong>Organisations first seen in this run</strong></header>
+  <table>
+    <thead><tr><th>Organisation</th><th>Website</th><th>Track</th><th>Status</th><th>Score</th><th>CMS</th><th>Error</th></tr></thead>
+    <tbody>
+    {% for o in orgs %}{% set s = o.primary_website %}
+    <tr><td><a href="/organizations/{{ o.id }}">{{ o.label }}</a></td><td><small>{{ o.domain or '—' }}</small></td><td>{{ o.track }}</td><td>{{ o.status }}</td>
+      <td><span class="band {{ band_class(o.score_band) }}">{{ o.score_total }}</span></td><td>{{ s.cms if s else '—' }}</td><td>{{ s.error_state if s and s.error_state != 'none' else '' }}</td></tr>
+    {% else %}<tr><td colspan="7">Nothing yet{% if run.status in ('queued','running') %} — the worker is processing this run. Refresh in a moment.{% endif %}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</article>
+{% if jobs %}
+<article><header><strong>Jobs</strong></header>
+  <table class="compact"><thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Error</th></tr></thead><tbody>
+  {% for j in jobs %}<tr><td>{{ j.id }} page {{ j.payload.get('page_no') }}</td><td>{{ j.status }}</td><td>{{ j.attempts }}</td><td><small>{{ (j.last_error or '')[:200] }}</small></td></tr>{% endfor %}
+  </tbody></table></article>
+{% endif %}
+{% endblock %}

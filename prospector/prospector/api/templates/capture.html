@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Manual capture{% endblock %}
+{% block content %}
+<article>
+  <header><strong>Manual research capture</strong><br><small>Record what you read on a public page yourself (LinkedIn company page, directory, website). No automation, one named contact at most, and a reference URL for provenance.</small></header>
+  <form method="post" action="/capture">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="grid">
+      <label>Company <input name="company" required></label>
+      <label>Website <input name="website" type="url" placeholder="https://"></label>
+      <label>Reference URL (where you read this) <input name="reference_url" type="url" required placeholder="https://www.linkedin.com/company/…"></label>
+    </div>
+    <div class="grid">
+      <label>Track <select name="track"><option value="unknown">unknown</option><option value="smb">SMB</option><option value="agency">Agency</option></select></label>
+      <label>City <input name="city"></label>
+      <label>Country (ISO-2) <input name="country" maxlength="2" placeholder="IN"></label>
+      <label>Published phone <input name="phone"></label>
+      <label>Published generic e-mail <input name="email" type="email" placeholder="info@…"></label>
+    </div>
+    <label>Services / specialities <input name="services" placeholder="WordPress, WooCommerce, SEO"></label>
+    <label>Notes <textarea name="notes" rows="2"></textarea></label>
+    <details>
+      <summary>Named contact (optional — requires lawful basis)</summary>
+      <div class="grid">
+        <label>Name <input name="person_name"></label>
+        <label>Role <input name="person_role"></label>
+        <label>Public profile URL <input name="person_profile_url" type="url"></label>
+        <label>Work e-mail (only if published) <input name="person_email" type="email"></label>
+      </div>
+      <div class="grid">
+        <label>Lawful basis <select name="lawful_basis"><option value="">—</option>{% for b in lawful_bases %}<option value="{{ b }}">{{ b }}</option>{% endfor %}</select></label>
+        <label>LIA reference <input name="lia_reference" placeholder="LIA-2026-01"></label>
+        <label>Notice status <select name="notice_status">{% for n in notice_statuses %}<option value="{{ n }}">{{ n }}</option>{% endfor %}</select></label>
+      </div>
+    </details>
+    <button type="submit">Save</button>
+  </form>
+</article>
+{% endblock %}

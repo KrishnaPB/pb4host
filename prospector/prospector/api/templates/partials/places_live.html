@@ -1,0 +1,13 @@
+{% if error %}
+<p class="error"><small>{{ error }}</small></p>
+{% elif details %}
+<p><strong>{{ details.name or '—' }}</strong>{% if details.status %} <small>({{ details.status }})</small>{% endif %}<br>
+  {% if details.address %}<small>{{ details.address }}</small><br>{% endif %}
+  {% if details.website %}<small><a href="{{ details.website }}" target="_blank" rel="noopener noreferrer nofollow">{{ details.website }}</a></small><br>{% endif %}
+  {% if details.rating %}<small>{{ details.rating }} ★ ({{ details.rating_count or 0 }} ratings)</small><br>{% endif %}
+  {% if details.maps_url %}<a href="{{ details.maps_url }}" target="_blank" rel="noopener noreferrer">View on Google Maps</a>{% endif %}
+</p>
+<p class="attribution"><small>{{ details.attribution or 'Powered by Google' }} · shown live from the Places API; not stored by Prospector.</small></p>
+{% else %}
+<p><small>No details available.</small></p>
+{% endif %}

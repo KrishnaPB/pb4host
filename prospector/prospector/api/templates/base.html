@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Prospector{% endblock %} · PB4HOST</title>
+  <link rel="stylesheet" href="/static/vendor/pico.min.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+<nav class="container-fluid topnav">
+  <ul>
+    <li><a href="/" class="brand"><strong>Prospector</strong> <small>PB4HOST</small></a></li>
+  </ul>
+  {% if user %}
+  <ul>
+    <li><a href="/runs" {% if path.startswith('/runs') %}aria-current="page"{% endif %}>Runs</a></li>
+    <li><a href="/organizations" {% if path.startswith('/organizations') %}aria-current="page"{% endif %}>Organisations</a></li>
+    <li><a href="/capture" {% if path.startswith('/capture') %}aria-current="page"{% endif %}>Capture</a></li>
+    <li><a href="/imports" {% if path.startswith('/imports') %}aria-current="page"{% endif %}>Imports</a></li>
+    <li><a href="/exports" {% if path.startswith('/exports') %}aria-current="page"{% endif %}>Exports</a></li>
+    <li><a href="/suppressions" {% if path.startswith('/suppressions') or path.startswith('/rights') %}aria-current="page"{% endif %}>Rights &amp; DNC</a></li>
+    <li><details class="dropdown">
+      <summary>Admin</summary>
+      <ul dir="rtl">
+        <li><a href="/admin/connectors">Connectors</a></li>
+        <li><a href="/admin/jobs">Jobs</a></li>
+        {% if user.role == 'owner' %}
+        <li><a href="/admin/audit">Audit log</a></li>
+        <li><a href="/admin/users">Users</a></li>
+        {% endif %}
+        <li><a href="/api/docs">API docs</a></li>
+      </ul>
+    </details></li>
+    <li>
+      <form method="post" action="/logout" class="inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="outline secondary small" type="submit" title="{{ user.email }} ({{ user.role }})">Sign out</button>
+      </form>
+    </li>
+  </ul>
+  {% endif %}
+</nav>
+<main class="container-fluid">
+  {% for f in flashes %}
+  <article class="flash flash-{{ f.level }}">{{ f.message }}</article>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<footer class="container-fluid">
+  <small>Prospector v{{ version }} · organisation-first prospecting · every stored fact carries its source ·
+    <a href="/healthz">health</a></small>
+</footer>
+</body>
+</html>
